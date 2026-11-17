@@ -23,8 +23,17 @@ label.tick input { margin-top: 3px; accent-color: var(--green); width: 15px; hei
 .seg button + button { border-left: 1px solid var(--edge); }
 .seg button.on { background: var(--green); color: #fff; font-weight: 600; }
 details summary { cursor: pointer; color: var(--green); margin-top: 6px; }
-textarea { width: 100%; border: 1px solid var(--edge); border-radius: 8px; padding: 6px; font: inherit;
-  background: var(--bg); color: var(--ink); resize: vertical; }
+.add-row { display: flex; gap: 6px; margin-top: 4px; }
+.add-row input { flex: 1; min-width: 0; border: 1px solid var(--edge); border-radius: 8px; padding: 6px 8px;
+  font: inherit; background: var(--bg); color: var(--ink); }
+.add-row input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
+button.add { border: 0; border-radius: 8px; padding: 6px 14px; background: var(--green); color: #fff;
+  font: inherit; font-weight: 600; cursor: pointer; }
+.mine-list li { align-items: center; justify-content: space-between; padding: 3px 8px; margin-top: 4px;
+  border-radius: 8px; background: var(--green-soft); }
+.mine-list button.x { border: 0; background: none; color: var(--dim); font-size: 16px; line-height: 1;
+  cursor: pointer; padding: 0 2px; }
+.mine-list button.x:hover { color: var(--ink); }
 ul { list-style: none; margin: 6px 0 0; padding: 0; max-height: 180px; overflow-y: auto; }
 li { display: flex; gap: 8px; padding: 2px 0; font-size: 13px; }
 li .t { color: var(--dim); min-width: 44px; font-variant-numeric: tabular-nums; }

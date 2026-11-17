@@ -36,28 +36,44 @@
     $("words").textContent = ""; $("picture").textContent = "";
     for (const [key, label, group] of S.FILTERS)
       $(group === "picture" ? "picture" : "words").appendChild(tickBox(key, label, ticks));
-    $("mine").value = s.mine || "";
+    drawMine();
+  }
+
+  // her own words: type one and press Enter (or Add) and it's added to the list under the box,
+  // each with an x to take it off (the owner, 2026-11-17: "if enter is hit the word should be
+  // added"). Kept as before, one per line in s.mine.
+  const mineList = () => (s.mine || "").split("\n").map(w => w.trim()).filter(Boolean);
+  function drawMine() {
+    const ul = $("mine-list"); ul.textContent = "";
+    for (const w of mineList()) {
+      const li = document.createElement("li");
+      const t = document.createElement("span"); t.textContent = w;
+      const x = document.createElement("button"); x.className = "x"; x.textContent = "×";
+      x.title = `Stop muting "${w}"`;
+      x.addEventListener("click", () => saveMine(mineList().filter(m => m !== w), `Removed "${w}".`));
+      li.append(t, x); ul.appendChild(li);
+    }
+    $("mine-none").hidden = mineList().length > 0;
+  }
+  async function saveMine(list, said) {
+    s.mine = list.join("\n");
+    await S.save({ mine: s.mine });
+    drawMine();
+    $("mine-saved").textContent = said;
+  }
+  function addMine() {
+    const w = $("mine-new").value.replace(/\s+/g, " ").trim();
+    if (!w) return;
+    const list = mineList();
+    $("mine-new").value = "";
+    if (list.some(m => m.toLowerCase() === w.toLowerCase())) { $("mine-saved").textContent = `"${w}" is already on the list.`; return; }
+    saveMine([...list, w], `Added "${w}". It's muted from now on.`);
   }
 
   $("on").addEventListener("change", async e => { s.on = e.target.checked; await S.save({ on: s.on }); draw(); });
-  // her own words: saved a moment after each change, and at once when the window closes (it used
-  // to wait half a second, so words typed just before clicking back on the video were lost:
-  // "i added the words but when i hit enter they didnt take", 2026-11-17)
-  let typing = null;
-  const saveMine = () => {
-    clearTimeout(typing); typing = null;
-    if (($("mine").value || "") === (s.mine || "")) return;
-    s.mine = $("mine").value;
-    S.save({ mine: s.mine }).then(() => { $("mine-saved").textContent = "Saved."; });
-  };
-  $("mine").addEventListener("input", () => {
-    $("mine-saved").textContent = "";
-    clearTimeout(typing); typing = setTimeout(saveMine, 150);
-  });
-  $("mine").addEventListener("change", saveMine);
-  addEventListener("blur", saveMine);
-  addEventListener("pagehide", saveMine);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) saveMine(); });
+  $("mine-new").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); addMine(); } });
+  $("mine-new").addEventListener("input", () => { $("mine-saved").textContent = ""; });
+  $("mine-add").addEventListener("click", addMine);
   $("reset").addEventListener("click", async () => {
     s.ticks = { ...(s.ticks || {}), [s.profile]: {} };
     await S.save({ ticks: s.ticks }); draw();

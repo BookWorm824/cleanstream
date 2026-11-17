@@ -35,9 +35,14 @@
     <div id="words"></div>
     <details>
       <summary>Your own words</summary>
-      <p class="small">One word or phrase on each line. They're always muted, for every age.</p>
-      <textarea id="mine" rows="3" spellcheck="false"></textarea>
+      <p class="small">Type a word or phrase and press Enter. They're always muted, for every age.</p>
+      <div class="add-row">
+        <input id="mine-new" type="text" spellcheck="false" placeholder="A word to mute" aria-label="A word to mute">
+        <button id="mine-add" class="add">Add</button>
+      </div>
       <p class="small" id="mine-saved" aria-live="polite"></p>
+      <ul id="mine-list" class="mine-list"></ul>
+      <p class="small" id="mine-none">No words of your own yet.</p>
     </details>
   </section>
 
