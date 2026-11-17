@@ -120,9 +120,13 @@
   function startVideo(id) {
     st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.scenes = [];
     st.skipped = 0; st.captions = "waiting";
-    unmute();
+    // early.js may have muted it before this started: take that mute over (so it's undone
+    // when the captions are in, or now if CleanStream is off)
+    const early = globalThis.__csEarlyMuted;
+    globalThis.__csEarlyMuted = false; globalThis.__csArmed = false;
+    if (early) st.weMuted = true; else unmute();
     hold(false);
-    if (!st.settings || !st.settings.on) return;
+    if (!st.settings || !st.settings.on) { unmute(); return; }
     hold(true);
     say("CleanStream is getting this video's captions (the sound is off until it's ready)…", 0);
     // the player must have this video loaded before its captions can be asked for
