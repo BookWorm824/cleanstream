@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CleanStream",
-  "version": "0.2.6",
-  "description": "Mutes bad language and skips problem scenes while YouTube videos play. Nothing is copied or saved.",
+  "version": "0.3.0",
+  "description": "Mutes bad language while YouTube and Netflix videos play, and skips problem scenes on YouTube. Nothing is copied or saved.",
   "icons": {
     "16": "icons/16.png",
     "32": "icons/32.png",
@@ -23,12 +23,36 @@
     "alarms"
   ],
   "host_permissions": [
-    "https://www.youtube.com/*"
+    "https://www.youtube.com/*",
+    "https://www.netflix.com/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
+    {
+      "matches": [
+        "https://www.netflix.com/*"
+      ],
+      "js": [
+        "netflix_page.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.netflix.com/*"
+      ],
+      "js": [
+        "words_data.js",
+        "words.js",
+        "captions.js",
+        "settings.js",
+        "netflix.js"
+      ],
+      "run_at": "document_idle"
+    },
     {
       "matches": [
         "https://www.youtube.com/*"

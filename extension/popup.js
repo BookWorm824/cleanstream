@@ -83,17 +83,25 @@
   // ---------- what was found in the video open in this tab ----------
   async function showVideo() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !/^https:\/\/www\.youtube\.com\//.test(tab.url || "")) {
+    const site = /^https:\/\/www\.netflix\.com\//.test(tab && tab.url || "") ? "Netflix"
+      : /^https:\/\/www\.youtube\.com\//.test(tab && tab.url || "") ? "YouTube" : null;
+    $("video-src").textContent = "";
+    if (!site) {
       $("video-box").hidden = false;
-      $("video-say").textContent = "Open a YouTube video to use CleanStream.";
+      $("video-say").textContent = "Open a YouTube or Netflix video to use CleanStream.";
       return;
     }
     let r = null;
     try { r = await chrome.tabs.sendMessage(tab.id, { type: "state" }); } catch (e) { /* not loaded yet */ }
     $("video-box").hidden = false;
-    if (!r) { $("video-say").textContent = "Reload the YouTube page to start CleanStream on it."; return; }
+    if (!r) { $("video-say").textContent = `Reload the ${site} page to start CleanStream on it.`; return; }
     if (!r.video) { $("video-say").textContent = "Open a video to see what CleanStream found."; return; }
-    const say = {
+    const say = site === "Netflix" ? {
+      waiting: "Getting this title's subtitles…",
+      none: "This title has no English subtitles, so bad language can't be muted.",
+      empty: "Netflix didn't share this title's subtitles. Reloading the page may help.",
+      error: "Couldn't read this title's subtitles.",
+    }[r.captions] : {
       waiting: "Getting this video's captions…",
       none: "This video has no English captions, so bad language can't be muted.",
       empty: "YouTube didn't share this video's captions. Reloading the page may help.",
@@ -109,6 +117,8 @@
       auto: "Going by YouTube's automatic captions (each word's own time).",
       both: "Going by the video's written captions, timed by YouTube's automatic ones.",
       written: "Going by the video's written captions only, so word times are guessed.",
+      netflix: "Going by Netflix's English subtitles (a line at a time, so each word's moment is " +
+        "guessed and muted a little wider). Scenes aren't checked on Netflix.",
     }[r.source] || "";
     const items = [
       ...r.mutes.map(m => ({ t: m.s, w: m.text, why: m.why + (m.guess ? " (timing guessed)" : ""), cls: "" })),

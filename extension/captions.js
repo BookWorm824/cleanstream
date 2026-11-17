@@ -241,5 +241,50 @@
     return out;
   }
 
-  globalThis.CSCaptions = { readJson3, plan, ranges, findInTrack, soundsAlike, LABEL };
+  // ---------- Netflix's subtitles (TTML / DFXP, or WebVTT): written lines, no word times ----------
+  // A time: "123456789t" (ticks), "01:02:03.456", "01:02:03:12" (frames, taken as hundredths
+  // is close enough), "12.5s", "1500ms".
+  function ttmlTime(v, tickRate) {
+    if (!v) return null;
+    let m;
+    if ((m = /^([\d.]+)t$/.exec(v))) return +m[1] / (tickRate || 10000000);
+    if ((m = /^([\d.]+)ms$/.exec(v))) return +m[1] / 1000;
+    if ((m = /^([\d.]+)s$/.exec(v))) return +m[1];
+    if ((m = /^(\d+):(\d+):(\d+(?:\.\d+)?)(?::(\d+))?$/.exec(v)))
+      return +m[1] * 3600 + +m[2] * 60 + +m[3] + (m[4] ? +m[4] / 100 : 0);
+    return null;
+  }
+  /** TTML text -> cues, as readJson3 gives for written captions. */
+  function readTTML(text) {
+    const doc = new DOMParser().parseFromString(text, "text/xml");
+    const root = doc.documentElement;
+    const tick = +(root.getAttribute("ttp:tickRate") || root.getAttributeNS("http://www.w3.org/ns/ttml#parameter", "tickRate")) || 10000000;
+    const events = [];
+    for (const p of doc.getElementsByTagNameNS("*", "p")) {
+      const s = ttmlTime(p.getAttribute("begin"), tick), e = ttmlTime(p.getAttribute("end"), tick);
+      if (s == null) continue;
+      for (const br of [...p.getElementsByTagNameNS("*", "br")]) br.replaceWith(" ");
+      const line = p.textContent.replace(/\s+/g, " ").trim();
+      if (line) events.push({ tStartMs: s * 1000, dDurationMs: Math.max(0, ((e ?? s + 2) - s) * 1000), segs: [{ utf8: line }] });
+    }
+    events.sort((a, b) => a.tStartMs - b.tStartMs);
+    return readJson3({ events }, false);
+  }
+  /** WebVTT text -> cues. */
+  function readVTT(text) {
+    const events = [], t = x => { const m = /(?:(\d+):)?(\d+):(\d+)[.,](\d+)/.exec(x); return m ? (+(m[1] || 0)) * 3600 + +m[2] * 60 + +m[3] + +("0." + m[4]) : null; };
+    for (const block of text.replace(/\r/g, "").split(/\n\n+/)) {
+      const lines = block.split("\n"), k = lines.findIndex(l => l.includes("-->"));
+      if (k < 0) continue;
+      const [a, b] = lines[k].split("-->"), s = t(a), e = t(b);
+      const line = lines.slice(k + 1).join(" ").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+      if (s != null && line) events.push({ tStartMs: s * 1000, dDurationMs: Math.max(0, ((e ?? s + 2) - s) * 1000), segs: [{ utf8: line }] });
+    }
+    return readJson3({ events }, false);
+  }
+  /** Netflix subtitles of either kind. */
+  const readSubtitles = text => (/^\s*WEBVTT/.test(text) ? readVTT(text) : readTTML(text));
+
+  globalThis.CSCaptions = { readJson3, readTTML, readVTT, readSubtitles, plan, ranges, findInTrack, soundsAlike, LABEL };
 })();

@@ -1,8 +1,9 @@
-CleanStream (test version 0.1)
-==============================
+CleanStream (test version)
+==========================
 
-CleanStream mutes bad language and skips nudity while a YouTube video plays.
-Nothing is copied or saved: it all happens as you watch.
+CleanStream mutes bad language and skips nudity while a YouTube video plays,
+and mutes bad language on Netflix. Nothing is copied or saved: it all
+happens as you watch.
 
 
 Putting it in Chrome (one time)
@@ -52,3 +53,7 @@ Good to know
 - If captions are on, bad words in them are shown as d***.
 - The nudity check runs a hidden, silent copy of the video a little ahead
   of you. Signed in to YouTube, that copy may show up in your watch history.
+- On Netflix only the language is filtered: Netflix's picture is locked by
+  its copy protection, so scenes can't be checked there. CleanStream reads
+  Netflix's English subtitles (without showing them) and mutes a little
+  wider than on YouTube, since Netflix gives a line at a time.
