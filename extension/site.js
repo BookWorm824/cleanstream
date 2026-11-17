@@ -1,12 +1,13 @@
-// CleanStream on Netflix (language only; the picture is copy-protected): gets the English
-// subtitles through netflix_page.js, works out what to mute with CleanView's word lists
-// (captions.js), keeps the sound off from the start of a title until that's done, and mutes at
-// the right moments. Netflix's subtitles give a line at a time, so each word's moment is
-// guessed within its line and muted a little wider (as YouTube's written captions).
+// CleanStream on Netflix and Prime Video (language only; their picture is copy-protected): gets
+// the English subtitles through the site's page script (netflix_page.js / prime_page.js), works
+// out what to mute with CleanView's word lists (captions.js), keeps the sound off from the start
+// of a title until that's done, and mutes at the right moments. Their subtitles give a line at a
+// time, so each word's moment is guessed within its line and muted a little wider (as YouTube's
+// written captions). What differs per site is in CS_SITE (site_netflix.js / site_prime.js).
 (function () {
-  if (window.__cleanstreamNf) return;
-  window.__cleanstreamNf = true;
-  const TAG = "cleanstream";
+  if (window.__cleanstreamSite) return;
+  window.__cleanstreamSite = true;
+  const TAG = "cleanstream", SITE = globalThis.CS_SITE;
   const CC = globalThis.CSCaptions, CS = globalThis.CSWords, S = globalThis.CSSettings;
   const st = { video: null, settings: null, ticks: null, tracks: null, plan: null, ranges: [],
     status: "", captions: "waiting", weMuted: false, holding: false, scenes: [] };
@@ -16,7 +17,7 @@
   let pill, pillTimer;
   function say(text, secs = 6) {
     st.status = text;
-    const host = document.querySelector(".watch-video") || document.body;
+    const host = SITE.host() || document.body;
     if (!pill || !host.contains(pill)) {
       pill = document.createElement("div");
       pill.id = "cleanstream-status";
@@ -31,8 +32,7 @@
     if (secs) pillTimer = setTimeout(() => { pill.style.opacity = "0"; }, secs * 1000);
   }
 
-  const videoEl = () => document.querySelector(".watch-video video") || document.querySelector("video");
-  const currentTitle = () => (/^\/watch\/(\d+)/.exec(location.pathname) || [])[1] || null;
+  const videoEl = () => SITE.video();
 
   // ---------- muting ----------
   function inRange(t, ranges, lead) {
@@ -112,21 +112,30 @@
     if (!id || !st.settings || !st.settings.on) return;
     hold(true);
     say("CleanStream is getting this title's subtitles (the sound is off until it's ready)…", 0);
-    window.postMessage({ [TAG]: "nf-content", type: "get-subs", title: id }, "*");
+    if (SITE.ask) window.postMessage({ [TAG]: SITE.contentTag, type: "get-subs", title: id }, "*");
   }
+  let pending = null;            // subtitles that came before the title was known (Prime)
   window.addEventListener("message", e => {
     const d = e.data;
-    if (e.source !== window || !d || d[TAG] !== "nf-page") return;
-    if (d.type === "subs-done") subsArrived(d);
+    if (e.source !== window || !d || d[TAG] !== SITE.pageTag) return;
+    // Prime: the page script says which title is starting (no address to watch)
+    if (d.type === "title" && !SITE.titleFromUrl && d.title !== st.video) {
+      startTitle(d.title);
+      if (pending && pending.title === d.title) { subsArrived(pending); pending = null; }
+    }
+    if (d.type === "subs-done") { if (d.title === st.video) subsArrived(d); else pending = d; }
+    // a subtitle file the player downloaded itself, when the list's own fetch failed
+    if (d.type === "subs-seen" && d.title === st.video && st.captions !== "ok") subsArrived({ title: d.title, text: d.text });
   });
 
-  // ---------- following Netflix's page changes (it doesn't reload between titles) ----------
+  // ---------- following the page's changes (neither site reloads between titles) ----------
   function check() {
     if (!(chrome.runtime && chrome.runtime.id) && !st.toldUpdated) {
       st.toldUpdated = true;
       say("CleanStream was updated. Press F5 to use the new version.", 12);
     }
-    const id = currentTitle();
+    if (!SITE.titleFromUrl) return;
+    const id = SITE.titleFromUrl();
     if (id !== st.video) startTitle(id);
   }
   setInterval(check, 500);
@@ -144,11 +153,11 @@
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     if (msg.type !== "state") return;
     const v = videoEl();
-    reply({ video: st.video, title: document.title.replace(/ - Netflix$/, ""), captions: st.captions,
-      status: st.status, source: st.plan && "netflix", now: v ? v.currentTime : 0,
+    reply({ video: st.video, title: document.title, captions: st.captions,
+      status: st.status, source: st.plan && "subtitles", now: v ? v.currentTime : 0,
       mutes: st.plan ? st.plan.mutes.map(m => ({ s: m.s, text: CS.mask(m.text), why: m.why, guess: false })) : [],
       left: st.plan ? st.plan.left.map(m => ({ s: m.s, text: m.text, why: m.why })) : [],
-      scenes: [], picture: null, site: "netflix" });
+      scenes: [], picture: null, site: SITE.name });
   });
 
   (async () => { st.settings = await S.load(); check(); })();

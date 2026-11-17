@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CleanStream",
-  "version": "0.3.0",
-  "description": "Mutes bad language while YouTube and Netflix videos play, and skips problem scenes on YouTube. Nothing is copied or saved.",
+  "version": "0.3.1",
+  "description": "Mutes bad language while YouTube, Netflix and Prime Video videos play, and skips problem scenes on YouTube. Nothing is copied or saved.",
   "icons": {
     "16": "icons/16.png",
     "32": "icons/32.png",
@@ -24,7 +24,9 @@
   ],
   "host_permissions": [
     "https://www.youtube.com/*",
-    "https://www.netflix.com/*"
+    "https://www.netflix.com/*",
+    "https://www.primevideo.com/*",
+    "https://www.amazon.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -49,7 +51,38 @@
         "words.js",
         "captions.js",
         "settings.js",
-        "netflix.js"
+        "site_netflix.js",
+        "site.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.primevideo.com/*",
+        "https://www.amazon.com/gp/video/*",
+        "https://www.amazon.com/*/dp/*",
+        "https://www.amazon.com/dp/*"
+      ],
+      "js": [
+        "prime_page.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.primevideo.com/*",
+        "https://www.amazon.com/gp/video/*",
+        "https://www.amazon.com/*/dp/*",
+        "https://www.amazon.com/dp/*"
+      ],
+      "js": [
+        "words_data.js",
+        "words.js",
+        "captions.js",
+        "settings.js",
+        "site_prime.js",
+        "site.js"
       ],
       "run_at": "document_idle"
     },
