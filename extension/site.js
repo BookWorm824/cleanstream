@@ -104,18 +104,26 @@
   }
   function subsArrived(d) {
     if (d.title !== st.video) return;
+    if (st.captions === "ok" && !d.text) return;      // already muting from them: not news
     hold(false);
+    // bad news waits a few seconds: on Prime and the others the subtitles can still come another
+    // way (a later answer, or the player's own download), and then it was never true
+    const sayLater = (text, secs) => {
+      const id = st.video;
+      setTimeout(() => { if (st.video === id && st.captions !== "ok") say(text, secs); }, SITE.ask ? 0 : 6000);
+    };
     if (d.none) {
       st.captions = "none";
-      say(d.others ? "CleanStream: this title only has subtitles in another language, so bad language can't be muted yet."
+      sayLater(d.others ? "CleanStream: this title only has subtitles in another language, so bad language can't be muted yet."
         : "CleanStream: this title has no subtitles, so bad language can't be muted.", 9);
       return;
     }
     let cues = null;
     try { cues = d.text ? CC.readSubtitles(d.text) : null; } catch (e) { cues = null; }
     if (!(cues && cues.length)) {
+      if (st.captions === "ok") return;
       st.captions = "empty";
-      say("CleanStream couldn't read this title's subtitles, so bad language won't be muted. Reloading the page may help.", 10);
+      sayLater("CleanStream couldn't read this title's subtitles, so bad language won't be muted. Reloading the page may help.", 10);
       return;
     }
     st.tracks = { written: cues, auto: null };

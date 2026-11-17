@@ -33,9 +33,13 @@
     let json; try { json = JSON.parse(text); } catch (e) { return; }
     const files = subtitleFiles(json);
     const title = titleOf(url) || (json.catalogMetadata && json.catalogMetadata.catalog && json.catalogMetadata.catalog.id) || "prime";
-    if (!files.length && !/subtitle|timedText/i.test(text)) return;    // not the playback list
+    if (!files.length && !/subtitle|timedText|playbackUrls|manifest/i.test(text)) return;    // not the playback list
     lastTitle = title;
     said("title", { title });
+    // the player can ask more than once as a title starts, and the first answer may not list the
+    // subtitles yet: that isn't "no subtitles" (the owner, 2026-11-17: "at first ... it says ...
+    // that it cant be muted but it does anyway")
+    if (!files.length) return;
     const en = files.filter(f => /^en\b/i.test(f.lang) && !f.forced);
     if (!en.length) return said("subs-done", { title, none: true, others: files.filter(f => !f.forced).length });
     const pick = en.find(f => /sdh|caption/i.test(f.type)) || en[0];
