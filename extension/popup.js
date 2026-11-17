@@ -136,7 +136,7 @@
     const latest = r.ok ? (await r.json()).version : null;
     if (latest && newer(latest, mine)) {
       $("update-say").textContent = `A new version of CleanStream (${latest}) is ready. To get it, ` +
-        `double-click "Update CleanStream" in the CleanStream folder.`;
+        `double-click "Update CleanStream" on your desktop.`;
       $("update-say").hidden = false;
     }
   } catch (e) { /* offline: say nothing */ }
