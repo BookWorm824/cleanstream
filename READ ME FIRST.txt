@@ -1,0 +1,54 @@
+CleanStream (test version 0.1)
+==============================
+
+CleanStream mutes bad language and skips nudity while a YouTube video plays.
+Nothing is copied or saved: it all happens as you watch.
+
+
+Putting it in Chrome (one time)
+-------------------------------
+1. In Chrome, type   chrome://extensions   in the address bar and press Enter.
+2. Turn on "Developer mode" (the switch at the top right).
+3. Click "Load unpacked" and choose this folder:
+       Downloads\CleanStream\extension
+4. Click the puzzle piece at the top right of Chrome, then the pin next to
+   CleanStream, so its green button stays in view.
+5. If YouTube was already open, reload that page.
+
+In Microsoft Edge it's the same, but type   edge://extensions   and the
+"Developer mode" switch is on the left.
+
+Chrome may say once in a while that a "developer mode extension" is on.
+That's normal for a test version; just close the message.
+
+
+Getting a new version
+---------------------
+Double-click "Update CleanStream" in this folder. It gets the newest
+CleanStream and puts it in the "extension" folder. Within a minute Chrome
+picks it up by itself; then press F5 on any YouTube page.
+The CleanStream settings window says when a new version is ready.
+(The first time, Windows may say it protected your PC: click "More info",
+then "Run anyway".)
+
+
+Using it
+--------
+- Open any YouTube video. A small line at the top left of the video says
+  how many words will be muted (or why it can't).
+- Click the green CleanStream button for the settings:
+    Filtering for: Young kids / Kids / Teens / Adults
+    Mute: the kinds of words to mute (the same groups as CleanView)
+    Skip scenes: nudity
+    Your own words: anything else you always want muted
+  "This video" shows what was found and when.
+- The switch at the top turns CleanStream off and on.
+
+
+Good to know
+------------
+- It needs the video's captions (the auto-made ones are fine). A video with
+  no English captions can't have its language muted.
+- If captions are on, bad words in them are shown as d***.
+- The nudity check runs a hidden, silent copy of the video a little ahead
+  of you. Signed in to YouTube, that copy may show up in your watch history.

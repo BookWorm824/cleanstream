@@ -1,0 +1,241 @@
+// Reading YouTube's captions and working out what to mute, for CleanStream.
+// YouTube's "json3" captions: auto-made ones (kind asr) give each word's own start time;
+// ones a person wrote give a line at a time. As CleanView uses what was heard for timing
+// and the subtitles for the words, CleanStream uses the auto-made words for timing and the
+// written captions for the words, when a video has both.
+(function () {
+  const W = globalThis.CV_WORDS, CS = globalThis.CSWords;
+  const rx = ([src, flags], g = true) => new RegExp(src, flags + (g ? "g" : ""));
+  const LINE_WORDS = Object.fromEntries(Object.entries(W.LINE_WORDS).map(([k, v]) => [k, rx(v)]));
+  const TRIM = rx(W.LIST_WORD_TRIM);
+  const STRIP_NEXT = new Set(W.STRIPPER_NEXT), STRIP_BEFORE = new Set(W.STRIPPER_BEFORE),
+    STRIP_THINGS = new Set(W.STRIPPER_THINGS);
+  const NAME_CATS = new Set(W.NAME_CATS), NOT_NAME_AFTER = new Set(W.NOT_NAME_AFTER),
+    SAID_IN_TITLES = new Set(W.SAID_IN_TITLES), GOD_PRAYER_NEXT = new Set(W.GOD_PRAYER_NEXT);
+
+  // what a mute covers around a word (seconds): a little before it starts, a little after
+  // (PAD_BEFORE was 0.12: "the beginnings of words need muted a hair sooner", the owner, 2026-11-17)
+  const PAD_BEFORE = 0.25, PAD_AFTER = 0.08, LONGEST_WORD = 1.2, JOIN_GAP = 0.2;
+  // a written caption's word placed by its share of the line: wider, since it's a guess
+  const GUESS_PAD = 0.35;
+
+  // ---------- reading json3 ----------
+  // Sound descriptions and speaker marks aren't words said: [Music], (laughs), >>, ♪
+  const NOT_SAID = /\[[^\]]*\]|\([^)]*\)|>>|♪|♫|^-\s*|\b[A-Z][A-Z]+:/g;
+  // YouTube's auto captions hide a strong swear as "[ __ ]": the word isn't known, but it's a swear
+  const HIDDEN = /^\[\s*_+\s*\]$/, HIDDEN_IN = /\[\s*_+\s*\]/g, HIDDEN_SAID = "[ __ ]", HIDDEN_PAD = 0.15;
+
+  /** json3 -> cues [{s, e, text, words: [{raw, w, s, e, timed}]}] (seconds). */
+  function readJson3(data, asr) {
+    const cues = [];
+    for (const ev of (data && data.events) || []) {
+      if (!ev.segs || ev.tStartMs == null) continue;
+      const s0 = ev.tStartMs / 1000, dur = (ev.dDurationMs || 0) / 1000;
+      const segs = ev.segs.filter(g => g.utf8 && g.utf8 !== "\n");
+      if (!segs.length) continue;
+      const text = segs.map(g => g.utf8).join("").replace(/\s+/g, " ").trim();
+      if (!text) continue;
+      const words = [];
+      if (asr && segs.some(g => g.tOffsetMs != null)) {
+        for (const g of segs) {
+          const raw = g.utf8.trim();
+          if (HIDDEN.test(raw)) {
+            words.push({ raw: HIDDEN_SAID, w: "", hidden: true, s: s0 + (g.tOffsetMs || 0) / 1000, e: null, timed: true });
+            continue;
+          }
+          if (!raw || /^\[.*\]$/.test(raw)) continue;
+          words.push({ raw, w: CS.norm(raw), s: s0 + (g.tOffsetMs || 0) / 1000, e: null, timed: true });
+        }
+      } else {
+        // a written line: each word placed by where it falls in the line
+        const said = text.replace(HIDDEN_IN, m => "⟦" + "_".repeat(m.length - 2) + "⟧")
+          .replace(NOT_SAID, m => " ".repeat(m.length));
+        const total = said.length || 1;
+        let m; const re = /\S+/g;
+        while ((m = re.exec(said))) {
+          const hidden = /^⟦_+⟧$/.test(m[0]);
+          words.push({ raw: hidden ? HIDDEN_SAID : m[0], w: hidden ? "" : CS.norm(m[0]), hidden,
+            s: s0 + dur * m.index / total, e: s0 + dur * (m.index + m[0].length) / total, timed: false });
+        }
+      }
+      if (words.length) cues.push({ s: s0, e: s0 + dur, text, words, asr: !!asr });
+    }
+    // an auto-made word ends where the next one starts (at most LONGEST_WORD later)
+    if (asr) {
+      const all = cues.flatMap(c => c.words);
+      all.sort((a, b) => a.s - b.s);
+      all.forEach((x, k) => {
+        const nxt = all[k + 1];
+        const cue = cues.find(c => c.words.includes(x));
+        const end = Math.min(nxt ? nxt.s : x.s + 0.6, x.s + LONGEST_WORD, Math.max(cue.e, x.s + 0.3));
+        x.e = Math.max(end, x.s + 0.15);
+      });
+    }
+    return cues;
+  }
+
+  // ---------- names (cleanview.name_in_subtitles, bare_god) ----------
+  const flat = cues => cues.flatMap((c, ci) => c.words.map(x => ({ ...x, ci })));
+  function newSentence(ws, k) {
+    return k === 0 || ws[k - 1].ci !== ws[k].ci ||
+      /[.!?:;\-–—…]['"”’]?$/.test(ws[k - 1].raw);
+  }
+  function nameHere(ws, cues, k) {
+    const w = ws[k].raw.replace(/^["'(“‘[]+/, "");
+    if (!/^[A-Z]/.test(w) || (w.length > 1 && w === w.toUpperCase()) || newSentence(ws, k)) return false;
+    if (SAID_IN_TITLES.has(CS.norm(w))) return false;
+    if (NOT_NAME_AFTER.has(CS.norm(ws[k - 1].raw)) || !/[a-z]/.test(cues[ws[k].ci].text)) return false;
+    return true;
+  }
+  function bareGod(ws, k) {
+    const w = ws[k].raw.replace(/^["'(“‘[\-–— ]+/, "");
+    if (!/^(?:God(!+|\?!|\.\.\.|…)?["'”’]?|God[,.])$/.test(w)) return false;
+    if (k && ["oh", "my", "good", "dear", "thank", "to", "of", "a"].includes(CS.norm(ws[k - 1].raw))) return false;
+    if (w.includes("!")) return true;
+    const last = k + 1 >= ws.length || ws[k + 1].ci !== ws[k].ci;
+    if (w.startsWith("God.") || w.startsWith("God…") || (w === "God" && last))
+      return newSentence(ws, k) && last;
+    if (w === "God," && newSentence(ws, k) && !last) return !GOD_PRAYER_NEXT.has(CS.norm(ws[k + 1].raw));
+    return false;
+  }
+  /** Words a written caption spells as a name mid-sentence anywhere ("Al", "Dern"). */
+  function namesIn(cues) {
+    const ws = flat(cues), out = new Set();
+    ws.forEach((x, k) => { if (nameHere(ws, cues, k)) out.add(CS.norm(x.raw)); });
+    return out;
+  }
+
+  // two words that could be heard for each other ("hell" for "Al"): letters, leading h off
+  function soundsAlike(a, b) {
+    a = a.replace(/^h/, ""); b = b.replace(/^h/, "");
+    if (!a || !b) return false;
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return 1 - d[a.length][b.length] / Math.max(a.length, b.length) >= 0.3;
+  }
+
+  // ---------- finding what to mute ----------
+  const LABEL = { strong: "Swearing", moderate: "Swearing", mild: "Mild word", deity: "God's name",
+    minced: "Soft substitute", samesex: "Same-sex word", rude: "Rude word", mine: "Your word",
+    sexref: "Sexual reference", casual: "Sleeping around", crude: "Crude humor" };
+
+  function stripperTool(text, m) {
+    const found = m[0].toLowerCase();
+    if (!found.startsWith("stripper") || found.replace(/s+$/, "").endsWith("pole")) return false;
+    const before = (text.slice(0, m.index).toLowerCase().match(/[a-z']+/g) || []).slice(-3);
+    const rest = text.slice(m.index + m[0].length).toLowerCase().replace(/^[a-z']+/, "");
+    const after = (rest.match(/[a-z']+/g) || []).slice(0, 5);
+    return (after.length && STRIP_NEXT.has(after[0])) || (before.length && STRIP_BEFORE.has(before[before.length - 1])) ||
+      [...before, ...after].some(w => STRIP_THINGS.has(w));
+  }
+
+  /** Words of one track to mute: [{s, e, words, cat, why, track}] and ones left alone. */
+  function findInTrack(cues, ticks, mine, kind) {
+    const cats = CS.catsFor(ticks), ws = flat(cues), names = kind === "written" ? namesIn(cues) : new Set();
+    const out = [], left = [];
+    const words = ws.map(x => x.w);
+    const keep = (a, b, cat, why) => {
+      const span = ws.slice(a, b).filter(x => x.w || x.hidden);
+      if (!span.length) return;
+      out.push({ s: span[0].s, e: span[span.length - 1].e, text: span.map(x => x.raw).join(" "),
+        cat, why: why || LABEL[cat] || cat, timed: span.every(x => x.timed), track: kind,
+        cue: span[0].ci });
+    };
+    for (const [a, b, cat] of CS.findLanguage(words, cats, mine)) {
+      // a mild word or soft substitute written as a name mid-sentence ("Detective Dern")
+      if (kind === "written" && b - a === 1 && NAME_CATS.has(cat) && nameHere(ws, cues, a)) {
+        left.push({ s: ws[a].s, text: ws[a].raw, why: "looks like a name here" });
+        continue;
+      }
+      keep(a, b, cat);
+    }
+    // a swear YouTube hid as "[ __ ]" (its auto captions do that for strong words)
+    if (cats.includes("strong"))
+      ws.forEach((x, k) => { if (x.hidden) keep(k, k + 1, "strong", "Swearing (YouTube hid it)"); });
+    if (kind === "written" && cats.includes("deity")) {
+      ws.forEach((x, k) => {
+        if (bareGod(ws, k) && !out.some(o => o.cue === x.ci && o.text.includes(x.raw))) keep(k, k + 1, "deity");
+      });
+    }
+    // the short lists that need no AI: just their words are muted (cleanview.list_words_only)
+    for (const key of ["sexref", "casual", "crude"]) {
+      if (!ticks[key]) continue;
+      cues.forEach((c, ci) => {
+        const plain = c.words.map(x => x.raw).join(" ");
+        for (const m of plain.matchAll(LINE_WORDS[key])) {
+          if (key === "sexref" && stripperTool(plain, m)) continue;
+          const phrase = m[0].replace(TRIM, "");
+          const want = phrase.split(/[\s-]+/).map(CS.norm).filter(Boolean);
+          const first = ws.findIndex((x, k) => x.ci === ci && want.every((w, j) => ws[k + j] && ws[k + j].w === w));
+          if (first < 0) continue;
+          if (out.some(o => o.cue === ci && o.s <= ws[first].s && o.e >= ws[first + want.length - 1].e)) continue;
+          keep(first, first + want.length, key);
+        }
+      });
+    }
+    return { mutes: out, left, names };
+  }
+
+  /** Is a mute from one track already there in the other's mutes? (cleanview.already_muted) */
+  function alreadyMuted(mutes, m) {
+    return mutes.some(o => (CS.norm(o.text) === CS.norm(m.text) && o.s - 0.8 <= m.s && m.s <= o.e + 0.8) ||
+      Math.min(m.e, o.e) - Math.max(m.s, o.s) > 0.5 * Math.max(0.01, m.e - m.s));
+  }
+
+  /** The whole plan for a video. tracks: {auto: cues|null, written: cues|null}.
+   *  Returns {mutes: [{s, e, text, why}], left: [...], source}. */
+  function plan(tracks, ticks, mineText = "") {
+    const mine = (mineText || "").split("\n").map(l => l.split(/[\s-]+/).map(CS.norm).filter(Boolean))
+      .filter(l => l.length);
+    const auto = tracks.auto && tracks.auto.length ? findInTrack(tracks.auto, ticks, mine, "auto") : null;
+    const written = tracks.written && tracks.written.length ? findInTrack(tracks.written, ticks, mine, "written") : null;
+    let mutes = [], left = [];
+    if (auto) {
+      for (const m of auto.mutes) {
+        // heard where the written captions have a name that sounds like it ("hell" / "Al")
+        if (written && m.text.split(" ").length === 1) {
+          const near = tracks.written.filter(c => c.s - 1 <= m.s && m.s <= c.e + 1);
+          const nm = near.flatMap(c => c.words).find(x => written.names.has(x.w) && soundsAlike(CS.norm(m.text), x.w));
+          if (nm && !written.mutes.some(o => Math.abs(o.s - m.s) < 2 && CS.norm(o.text) === CS.norm(m.text))) {
+            left.push({ s: m.s, text: m.text, why: `the captions say “${nm.raw}” here, a name` });
+            continue;
+          }
+        }
+        mutes.push(m);
+      }
+    }
+    if (written) {
+      left.push(...written.left);
+      const autoWords = auto ? tracks.auto.flatMap(c => c.words) : [];
+      for (const m of written.mutes) {
+        // a written word takes the time it was heard at, when the auto captions have it there
+        const want = m.text.split(/\s+/).map(CS.norm).filter(Boolean);
+        const hit = autoWords.findIndex((x, k) => x.w === want[0] && Math.abs(x.s - m.s) < 2.5 &&
+          want.every((w, j) => autoWords[k + j] && autoWords[k + j].w === w));
+        const timed = hit >= 0 ? { ...m, s: autoWords[hit].s, e: autoWords[hit + want.length - 1].e, timed: true } : m;
+        if (!alreadyMuted(mutes, timed)) mutes.push(timed);
+      }
+    }
+    mutes = mutes.map(m => {
+      // a swear YouTube hid is surely a swear, and its timing is the caption maker's guess: wider
+      const pad = (m.timed ? 0 : GUESS_PAD) + (m.text === HIDDEN_SAID ? HIDDEN_PAD : 0);
+      return { ...m, from: Math.max(0, m.s - PAD_BEFORE - pad), to: m.e + PAD_AFTER + pad };
+    }).sort((a, b) => a.from - b.from);
+    return { mutes, left, source: written && auto ? "both" : written ? "written" : auto ? "auto" : "none" };
+  }
+
+  /** Mutes joined where they touch: [[from, to], ...] for the player. */
+  function ranges(mutes) {
+    const out = [];
+    for (const m of [...mutes].sort((a, b) => a.from - b.from)) {
+      const last = out[out.length - 1];
+      if (last && m.from <= last[1] + JOIN_GAP) last[1] = Math.max(last[1], m.to);
+      else out.push([m.from, m.to]);
+    }
+    return out;
+  }
+
+  globalThis.CSCaptions = { readJson3, plan, ranges, findInTrack, soundsAlike, LABEL };
+})();

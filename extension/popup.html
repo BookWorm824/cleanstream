@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CleanStream</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/32.png" alt="" width="24" height="24">
+    <h1>CleanStream</h1>
+    <label class="switch" title="Turn CleanStream on or off">
+      <input type="checkbox" id="on"><span></span>
+    </label>
+  </header>
+
+  <p id="update-say" class="update" hidden></p>
+
+  <section id="video-box" hidden>
+    <h2>This video</h2>
+    <p id="video-say" class="say"></p>
+    <details id="found-box" hidden>
+      <summary id="found-head"></summary>
+      <ul id="found"></ul>
+    </details>
+  </section>
+
+  <section>
+    <h2>Filtering for</h2>
+    <div class="seg" id="profiles"></div>
+  </section>
+
+  <section>
+    <h2>Mute</h2>
+    <div id="words"></div>
+    <details>
+      <summary>Your own words</summary>
+      <p class="small">One word or phrase on each line. They're always muted.</p>
+      <textarea id="mine" rows="3" spellcheck="false"></textarea>
+    </details>
+  </section>
+
+  <section>
+    <h2>Skip scenes</h2>
+    <div id="picture"></div>
+    <p class="small" id="picture-say">The picture is checked a little ahead of where you're watching.</p>
+  </section>
+
+  <footer>
+    <button id="reset" class="link">Back to the standard ticks for this age</button>
+    <p class="small" id="version"></p>
+  </footer>
+  <script src="settings.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
