@@ -10,10 +10,12 @@
   const said = (type, data) => window.postMessage({ [TAG]: "page", type, ...data }, "*");
   const seen = new Map();          // caption address -> text, for this page
 
+  const pass = new Map();          // video -> a caption address the player made (it carries YouTube's pass)
   function caught(url, text) {
     try {
       const u = new URL(url, location.href);
       if (!u.pathname.includes("/api/timedtext")) return;
+      if (u.searchParams.get("pot")) pass.set(u.searchParams.get("v"), u);
       const key = [u.searchParams.get("v"), u.searchParams.get("lang"),
         u.searchParams.get("kind") || "", u.searchParams.get("tlang") || ""].join("|");
       seen.set(key, text);
@@ -69,7 +71,35 @@
       video: pr.videoDetails && pr.videoDetails.videoId };
   }
 
+  // A track fetched straight from its own address, with the pass borrowed from one the player
+  // made, always as json3 (each auto-made word with its own time, swears as "[ __ ]"). Asking
+  // the player for each track didn't always bring the auto-made one back: on the owner's PC
+  // CleanStream ended up with captions without word times, and the hidden swears at 3:07 of a
+  // Rosebud Baker video went through (2026-11-17).
+  const PASS_KEYS = ["pot", "potc", "c", "cver", "cplayer", "cos", "cosver", "cplatform", "cbr", "cbrver",
+    "xorb", "xobt", "xovt"];
+  async function fetchDirect(t, video) {
+    const from = pass.get(video);
+    if (!from || !t.baseUrl) return null;
+    try {
+      const u = new URL(t.baseUrl, location.href);
+      for (const k of PASS_KEYS) if (from.searchParams.has(k)) u.searchParams.set(k, from.searchParams.get(k));
+      u.searchParams.set("fmt", "json3");
+      const text = await F.call(window, u.toString(), { credentials: "include" }).then(r => r.ok ? r.text() : "");
+      return text && JSON.parse(text).events ? text : null;
+    } catch (e) { return null; }
+  }
+  async function needPass(p, t, video) {          // the player makes one caption request for us
+    if (pass.has(video)) return true;
+    p.setOption("captions", "track", { languageCode: t.languageCode, kind: t.kind || "",
+      vss_id: t.vssId, name: t.name && (t.name.simpleText || "") });
+    for (let k = 0; k < 40 && !pass.has(video); k++) await wait(250);
+    return pass.has(video);
+  }
+
   async function fetchTrack(p, t, video) {
+    const direct = await fetchDirect(t, video);
+    if (direct) return direct;
     const key = [video, t.languageCode, t.kind === "asr" ? "asr" : "", ""].join("|");
     if (seen.has(key)) return seen.get(key);
     p.setOption("captions", "track", { languageCode: t.languageCode, kind: t.kind || "",
@@ -95,6 +125,7 @@
     try {
       p.loadModule && p.loadModule("captions");
       await wait(300);
+      await needPass(p, tracks.auto || tracks.written, video);
       if (tracks.written) out.written = await fetchTrack(p, tracks.written, video);
       if (tracks.auto) out.auto = await fetchTrack(p, tracks.auto, video);
     } finally {

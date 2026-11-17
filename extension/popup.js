@@ -104,6 +104,12 @@
       : "Nothing to mute in the captions.");
     if (r.picture && r.picture.say) text += " " + r.picture.say;
     $("video-say").textContent = text;
+    // which captions it's going by: a sign when something's off (only written ones: no word times)
+    $("video-src").textContent = {
+      auto: "Going by YouTube's automatic captions (each word's own time).",
+      both: "Going by the video's written captions, timed by YouTube's automatic ones.",
+      written: "Going by the video's written captions only, so word times are guessed.",
+    }[r.source] || "";
     const items = [
       ...r.mutes.map(m => ({ t: m.s, w: m.text, why: m.why + (m.guess ? " (timing guessed)" : ""), cls: "" })),
       ...r.left.map(m => ({ t: m.s, w: m.text, why: "left alone: " + m.why, cls: "left" })),
