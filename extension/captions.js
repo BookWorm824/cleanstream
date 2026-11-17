@@ -160,15 +160,19 @@
       });
     }
     // the short lists that need no AI: just their words are muted (cleanview.list_words_only)
-    for (const key of ["sexref", "casual", "crude"]) {
-      if (!ticks[key]) continue;
+    // (same-sex words since CleanView 1.18.127: bi-curious, twink, shemale, under that tick)
+    for (const [key, tick] of [["sexref", "sexref"], ["casual", "casual"], ["crude", "crude"], ["samesex", "samesexwords"]]) {
+      if (!ticks[tick] || !LINE_WORDS[key]) continue;
       cues.forEach((c, ci) => {
         const plain = c.words.map(x => x.raw).join(" ");
         for (const m of plain.matchAll(LINE_WORDS[key])) {
           if (key === "sexref" && stripperTool(plain, m)) continue;
           const phrase = m[0].replace(TRIM, "");
-          const want = phrase.split(/[\s-]+/).map(CS.norm).filter(Boolean);
-          const first = ws.findIndex((x, k) => x.ci === ci && want.every((w, j) => ws[k + j] && ws[k + j].w === w));
+          let want = phrase.split(/[\s-]+/).map(CS.norm).filter(Boolean);
+          const at = w => ws.findIndex((x, k) => x.ci === ci && w.every((y, j) => ws[k + j] && ws[k + j].w === y));
+          let first = at(want);
+          // a hyphened word is one word in the captions ("gang-bang", "bi-curious")
+          if (first < 0 && /-/.test(phrase)) { want = [CS.norm(phrase)]; first = at(want); }
           if (first < 0) continue;
           if (out.some(o => o.cue === ci && o.s <= ws[first].s && o.e >= ws[first + want.length - 1].e)) continue;
           keep(first, first + want.length, key);

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CleanStream",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Mutes bad language and skips problem scenes while YouTube videos play. Nothing is copied or saved.",
   "icons": {
     "16": "icons/16.png",

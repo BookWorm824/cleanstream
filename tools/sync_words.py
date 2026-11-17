@@ -94,7 +94,8 @@ def build():
         "FAGGOT_WOOD": sorted(cl.FAGGOT_WOOD), "BOOBY_BIRDS": sorted(cl.BOOBY_BIRDS),
         "STUPID_DAZED_NEXT": sorted(cl.STUPID_DAZED_NEXT), "STUPID_DAZED_PREV": sorted(cl.STUPID_DAZED_PREV),
         # the short phrase lists that need no AI (cleanview.LINE_WORDS), and the rules around them
-        "LINE_WORDS": {k: js_regex(engine.LINE_WORDS[k]) for k in ("sexref", "casual", "crude")},
+        # (samesex since CleanView 1.18.127: bi-curious, twink, shemale are only there)
+        "LINE_WORDS": {k: js_regex(engine.LINE_WORDS[k]) for k in ("sexref", "casual", "crude", "samesex")},
         "LIST_WORD_TRIM": js_regex(engine.LIST_WORD_TRIM),
         "STRIPPER_NEXT": sorted(engine.STRIPPER_NEXT),
         "STRIPPER_BEFORE": sorted(engine.STRIPPER_BEFORE),
