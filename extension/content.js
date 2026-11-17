@@ -184,15 +184,21 @@
     }
     // muted a moment early (the tick runs every 20 ms, and muting takes a moment to be heard)
     const want = st.holding || (!v.paused && inRange(t, st.ranges, 0.08 * rate));
-    if (want && !st.weMuted && !v.muted) mute();
+    // muted whenever it should be, even when something (YouTube putting its own sound setting
+    // back as a video starts) turned the sound on again: that used to let the first "porn" of a
+    // video through (2026-11-17)
+    if (want && !v.muted) mute();
     else if (!want && st.weMuted) unmute();
   }
   setInterval(tick, 20);
   document.addEventListener("seeked", tick, true);
   document.addEventListener("play", tick, true);
-  // she muted it herself while CleanStream had it muted: leave it muted
+  // the sound turned on while CleanStream wants it off (YouTube restoring its own setting, or a
+  // click on the speaker during a muted word or the first seconds): off again straight away
   document.addEventListener("volumechange", e => {
-    if (e.target === videoEl() && st.weMuted && !e.target.muted) { st.weMuted = false; st.holding = false; }
+    if (e.target !== videoEl() || e.target.muted) return;
+    if (st.weMuted) st.weMuted = false;
+    tick();
   }, true);
 
   // ---------- captions shown on screen: listed words shown as d***, so they aren't read ----------

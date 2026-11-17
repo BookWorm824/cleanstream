@@ -40,11 +40,24 @@
   }
 
   $("on").addEventListener("change", async e => { s.on = e.target.checked; await S.save({ on: s.on }); draw(); });
-  let typing;
-  $("mine").addEventListener("input", e => {
-    clearTimeout(typing);
-    typing = setTimeout(() => { s.mine = e.target.value; S.save({ mine: s.mine }); }, 500);
+  // her own words: saved a moment after each change, and at once when the window closes (it used
+  // to wait half a second, so words typed just before clicking back on the video were lost:
+  // "i added the words but when i hit enter they didnt take", 2026-11-17)
+  let typing = null;
+  const saveMine = () => {
+    clearTimeout(typing); typing = null;
+    if (($("mine").value || "") === (s.mine || "")) return;
+    s.mine = $("mine").value;
+    S.save({ mine: s.mine }).then(() => { $("mine-saved").textContent = "Saved."; });
+  };
+  $("mine").addEventListener("input", () => {
+    $("mine-saved").textContent = "";
+    clearTimeout(typing); typing = setTimeout(saveMine, 150);
   });
+  $("mine").addEventListener("change", saveMine);
+  addEventListener("blur", saveMine);
+  addEventListener("pagehide", saveMine);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) saveMine(); });
   $("reset").addEventListener("click", async () => {
     s.ticks = { ...(s.ticks || {}), [s.profile]: {} };
     await S.save({ ticks: s.ticks }); draw();

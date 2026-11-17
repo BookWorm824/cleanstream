@@ -18,8 +18,11 @@
   for (const type of ["loadstart", "loadeddata", "canplay", "play", "playing"]) document.addEventListener(type, hush, true);
   // YouTube puts back its own volume setting as it loads: mute again until content.js takes over
   document.addEventListener("volumechange", e => {
-    if (globalThis.__csEarlyMuted && globalThis.__csArmed && e.target instanceof HTMLVideoElement &&
-        e.target.closest("#movie_player") && !e.target.muted) e.target.muted = true;
+    if (globalThis.__csArmed && on && e.target instanceof HTMLVideoElement &&
+        e.target.closest("#movie_player") && !e.target.muted && location.pathname === "/watch" &&
+        !document.querySelector("#movie_player.ad-showing")) {
+      e.target.muted = true; globalThis.__csEarlyMuted = true;
+    }
   }, true);
   document.addEventListener("yt-navigate-start", () => { globalThis.__csArmed = true; }, true);
 })();
