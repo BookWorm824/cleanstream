@@ -62,7 +62,7 @@
   }, true);
 
   // ---------- subtitles ----------
-  const HOLD_MOST = 30;
+  const HOLD_MOST = SITE.holdMost || 30;
   let holdTimer = null;
   function hold(on) {
     st.holding = on;
@@ -70,10 +70,30 @@
     if (on) holdTimer = setTimeout(() => {
       if (!st.holding) return;
       st.holding = false;
-      say("CleanStream couldn't get this title's subtitles in time, so bad language won't be muted. " +
-        "Reloading the page may help.", 10);
+      say(SITE.noSubsHint || ("CleanStream couldn't get this title's subtitles in time, so bad language won't be muted. " +
+        "Reloading the page may help."), 12);
     }, HOLD_MOST * 1000);
     tick();
+  }
+
+  // Subtitles that come in pieces as the video plays (Disney+, Max...: only with subtitles turned
+  // on): each piece's lines are added, and the plan made again.
+  let pieces = new Map(), whole = false, replanTimer = null;
+  function pieceArrived(d) {
+    if (d.title !== st.video || whole) return;
+    let cues = null;
+    try { cues = CC.readSubtitles(d.text); } catch (e) { cues = null; }
+    if (!(cues && cues.length)) return;
+    const before = pieces.size;
+    for (const c of cues) pieces.set(c.s.toFixed(2) + "|" + c.text, c);
+    if (pieces.size === before) return;
+    const first = st.captions !== "ok";
+    st.tracks = { written: [...pieces.values()].sort((a, b) => a.s - b.s), auto: null };
+    st.captions = "ok";
+    hold(false);
+    clearTimeout(replanTimer);
+    replanTimer = setTimeout(replan, first ? 0 : 300);
+    if (first) say("CleanStream is reading this title's subtitles as they come, and muting from them.", 6);
   }
   function replan() {
     if (!st.tracks || !st.settings) return;
@@ -100,6 +120,7 @@
     }
     st.tracks = { written: cues, auto: null };
     st.captions = "ok";
+    whole = true;
     replan();
     const n = st.plan.mutes.length;
     say(n ? `CleanStream: ${n} ${n === 1 ? "word or phrase" : "words or phrases"} will be muted.`
@@ -108,6 +129,7 @@
 
   function startTitle(id) {
     st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting";
+    pieces = new Map(); whole = false;
     unmute(); hold(false);
     if (!id || !st.settings || !st.settings.on) return;
     hold(true);
@@ -126,6 +148,7 @@
     if (d.type === "subs-done") { if (d.title === st.video) subsArrived(d); else pending = d; }
     // a subtitle file the player downloaded itself, when the list's own fetch failed
     if (d.type === "subs-seen" && d.title === st.video && st.captions !== "ok") subsArrived({ title: d.title, text: d.text });
+    if (d.type === "subs-piece") pieceArrived(d);
   });
 
   // ---------- following the page's changes (neither site reloads between titles) ----------

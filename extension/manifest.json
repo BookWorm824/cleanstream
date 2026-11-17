@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "CleanStream",
-  "version": "0.3.1",
-  "description": "Mutes bad language while YouTube, Netflix and Prime Video videos play, and skips problem scenes on YouTube. Nothing is copied or saved.",
+  "version": "0.3.2",
+  "description": "Mutes bad language while videos play on YouTube, Netflix, Prime Video, Hulu and more, and skips problem scenes on YouTube. Nothing is copied or saved.",
   "icons": {
     "16": "icons/16.png",
     "32": "icons/32.png",
@@ -26,12 +26,52 @@
     "https://www.youtube.com/*",
     "https://www.netflix.com/*",
     "https://www.primevideo.com/*",
-    "https://www.amazon.com/*"
+    "https://www.amazon.com/*",
+    "https://www.hulu.com/*",
+    "https://www.disneyplus.com/*",
+    "https://play.max.com/*",
+    "https://www.max.com/*",
+    "https://www.peacocktv.com/*",
+    "https://www.paramountplus.com/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
+    {
+      "matches": [
+        "https://www.hulu.com/*",
+        "https://www.disneyplus.com/*",
+        "https://play.max.com/*",
+        "https://www.max.com/*",
+        "https://www.peacocktv.com/*",
+        "https://www.paramountplus.com/*"
+      ],
+      "js": [
+        "other_page.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.hulu.com/*",
+        "https://www.disneyplus.com/*",
+        "https://play.max.com/*",
+        "https://www.max.com/*",
+        "https://www.peacocktv.com/*",
+        "https://www.paramountplus.com/*"
+      ],
+      "js": [
+        "words_data.js",
+        "words.js",
+        "captions.js",
+        "settings.js",
+        "site_other.js",
+        "site.js"
+      ],
+      "run_at": "document_idle"
+    },
     {
       "matches": [
         "https://www.netflix.com/*"

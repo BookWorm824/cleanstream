@@ -84,13 +84,15 @@
   async function showVideo() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const url = tab && tab.url || "";
-    const site = /^https:\/\/www\.netflix\.com\//.test(url) ? "Netflix"
-      : /^https:\/\/www\.(primevideo|amazon)\.com\//.test(url) ? "Prime Video"
-      : /^https:\/\/www\.youtube\.com\//.test(url) ? "YouTube" : null;
+    const SITES = [[/^https:\/\/www\.netflix\.com\//, "Netflix"], [/^https:\/\/www\.(primevideo|amazon)\.com\//, "Prime Video"],
+      [/^https:\/\/www\.youtube\.com\//, "YouTube"], [/^https:\/\/www\.hulu\.com\//, "Hulu"],
+      [/^https:\/\/www\.disneyplus\.com\//, "Disney+"], [/^https:\/\/(play|www)\.max\.com\//, "Max"],
+      [/^https:\/\/www\.peacocktv\.com\//, "Peacock"], [/^https:\/\/www\.paramountplus\.com\//, "Paramount+"]];
+    const site = (SITES.find(([re]) => re.test(url)) || [])[1] || null;
     $("video-src").textContent = "";
     if (!site) {
       $("video-box").hidden = false;
-      $("video-say").textContent = "Open a YouTube, Netflix or Prime Video video to use CleanStream.";
+      $("video-say").textContent = "Open a video on YouTube, Netflix, Prime Video, Hulu, Disney+, Max, Peacock or Paramount+ to use CleanStream.";
       return;
     }
     let r = null;
