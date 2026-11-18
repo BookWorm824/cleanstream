@@ -81,6 +81,8 @@
   draw();
 
   // ---------- what was found in the video open in this tab ----------
+  const set = (id, text) => { const el = $(id); if (el.textContent !== text) el.textContent = text; };
+  let foundKey = null;
   async function showVideo() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const url = tab && tab.url || "";
@@ -89,17 +91,17 @@
       [/^https:\/\/www\.disneyplus\.com\//, "Disney+"], [/^https:\/\/(play|www)\.max\.com\//, "Max"],
       [/^https:\/\/www\.peacocktv\.com\//, "Peacock"], [/^https:\/\/www\.paramountplus\.com\//, "Paramount+"]];
     const site = (SITES.find(([re]) => re.test(url)) || [])[1] || null;
-    $("video-src").textContent = "";
+    // only what changed is written (the owner, 2026-11-18: the window "kinda flickering" as
+    // everything was cleared and filled in again every 2 seconds)
+    const only = (say, src = "") => { set("video-say", say); set("video-src", src); };
+    $("video-box").hidden = false;
     if (!site) {
-      $("video-box").hidden = false;
-      $("video-say").textContent = "Open a video on YouTube, Netflix, Prime Video, Hulu, Disney+, Max, Peacock or Paramount+ to use CleanStream.";
-      return;
+      return only("Open a video on YouTube, Netflix, Prime Video, Hulu, Disney+, Max, Peacock or Paramount+ to use CleanStream.");
     }
     let r = null;
     try { r = await chrome.tabs.sendMessage(tab.id, { type: "state" }); } catch (e) { /* not loaded yet */ }
-    $("video-box").hidden = false;
-    if (!r) { $("video-say").textContent = `Reload the ${site} page to start CleanStream on it.`; return; }
-    if (!r.video) { $("video-say").textContent = "Start a video to see what CleanStream found."; return; }
+    if (!r) return only(`Reload the ${site} page to start CleanStream on it.`);
+    if (!r.video) return only("Start a video to see what CleanStream found.");
     const say = site !== "YouTube" ? {
       waiting: "Getting this title's subtitles…",
       none: "This title has no English subtitles, so bad language can't be muted.",
@@ -115,22 +117,25 @@
     let text = say || (n ? `${n} ${n === 1 ? "word or phrase" : "words or phrases"} will be muted.`
       : "Nothing to mute in the captions.");
     if (r.picture && r.picture.say) text += " " + r.picture.say;
-    $("video-say").textContent = text;
+    set("video-say", text);
     // which captions it's going by: a sign when something's off (only written ones: no word times)
-    $("video-src").textContent = {
+    set("video-src", {
       auto: "Going by YouTube's automatic captions (each word's own time).",
       both: "Going by the video's written captions, timed by YouTube's automatic ones.",
       written: "Going by the video's written captions only, so word times are guessed.",
       subtitles: `Going by ${site}'s English subtitles (a line at a time, so each word's moment is ` +
         `guessed and muted a little wider). Scenes aren't checked on ${site}.`,
-    }[r.source] || "";
+    }[r.source] || "");
     const items = [
       ...r.mutes.map(m => ({ t: m.s, w: m.text, why: m.why + (m.guess ? " (timing guessed)" : ""), cls: "" })),
       ...r.left.map(m => ({ t: m.s, w: m.text, why: "left alone: " + m.why, cls: "left" })),
       ...r.scenes.filter(x => x.skip).map(x => ({ t: x.from, w: "Scene skipped", why: `${x.why}, ${clock(x.from)}–${clock(x.to)}`, cls: "" })),
     ].sort((a, b) => a.t - b.t);
     $("found-box").hidden = !items.length;
-    $("found-head").textContent = "What was found";
+    set("found-head", "What was found");
+    const key = JSON.stringify(items);
+    if (key === foundKey) return;            // the same list: leave it (and where it's scrolled to)
+    foundKey = key;
     const ul = $("found"); ul.textContent = "";
     for (const it of items) {
       const li = document.createElement("li"); li.className = it.cls;
@@ -156,7 +161,8 @@
     const latest = r.ok ? (await r.json()).version : null;
     if (latest && newer(latest, mine)) {
       $("update-say").textContent = `A new version of CleanStream (${latest}) is ready. To get it, ` +
-        `double-click "Update CleanStream" on your desktop.`;
+        `double-click "Update CleanStream" on your desktop (the first time: the "update" file in ` +
+        `the CleanStream folder, which chrome://extensions shows under "Loaded from").`;
       $("update-say").hidden = false;
     }
   } catch (e) { /* offline: say nothing */ }
