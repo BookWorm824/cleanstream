@@ -32,8 +32,9 @@ TEST_HOSTS = {"www.primevideo.com": "127.0.0.2", "www.netflix.com": "127.0.0.3",
 def firefox_manifest(m, test=False):
     m = json.loads(json.dumps(m))
     m["background"] = {"scripts": [m["background"]["service_worker"]]}
-    m["browser_specific_settings"] = {"gecko": {"id": ADDON_ID, "strict_min_version": "128.0",
-                                                "update_url": UPDATE_URL}}
+    # no update_url: Mozilla's upload refused it, even for "On your own" (2026-11-18:
+    # '"update_url" is not allowed'), so new versions are uploaded and installed by hand for now
+    m["browser_specific_settings"] = {"gecko": {"id": ADDON_ID, "strict_min_version": "128.0"}}
     if test:
         for cs in m["content_scripts"]:
             extra = []
