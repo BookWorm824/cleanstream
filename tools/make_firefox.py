@@ -21,6 +21,9 @@ ROOT = Path(__file__).resolve().parent.parent
 EXT = ROOT / "extension"
 ADDON_ID = "cleanstream@bookworm824"
 LEAVE_OUT = {"update.cmd"}
+# Firefox looks here for new versions of the signed add-on (firefox/updates.json in the repo
+# lists each signed .xpi, kept in firefox/ too)
+UPDATE_URL = "https://raw.githubusercontent.com/BookWorm824/cleanstream/main/firefox/updates.json"
 # stand-in addresses for the tests: each site's scripts on its own address
 TEST_HOSTS = {"www.primevideo.com": "127.0.0.2", "www.netflix.com": "127.0.0.3",
               "www.youtube.com": "127.0.0.4", "www.hulu.com": "127.0.0.5"}
@@ -29,7 +32,8 @@ TEST_HOSTS = {"www.primevideo.com": "127.0.0.2", "www.netflix.com": "127.0.0.3",
 def firefox_manifest(m, test=False):
     m = json.loads(json.dumps(m))
     m["background"] = {"scripts": [m["background"]["service_worker"]]}
-    m["browser_specific_settings"] = {"gecko": {"id": ADDON_ID, "strict_min_version": "128.0"}}
+    m["browser_specific_settings"] = {"gecko": {"id": ADDON_ID, "strict_min_version": "128.0",
+                                                "update_url": UPDATE_URL}}
     if test:
         for cs in m["content_scripts"]:
             extra = []
