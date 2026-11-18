@@ -6,7 +6,7 @@ r"""Makes the Firefox copy of CleanStream from the same files as the Chrome one 
                                              matched on 127.0.0.2-5, for the stand-in pages in
                                              tools\test_firefox.mjs (never handed out)
 
-What differs for Firefox (Firefox 128 or newer, for scripts that run in the page's own world):
+What differs for Firefox (Firefox 140 or newer):
 - the background part runs as a background script, not a Chrome service worker;
 - Firefox needs an add-on id (kept the same forever: updates and saved settings go by it);
 - the Windows updater and its icon aren't included: Firefox updates signed add-ons itself.
@@ -34,7 +34,10 @@ def firefox_manifest(m, test=False):
     m["background"] = {"scripts": [m["background"]["service_worker"]]}
     # no update_url: Mozilla's upload refused it, even for "On your own" (2026-11-18:
     # '"update_url" is not allowed'), so new versions are uploaded and installed by hand for now
-    m["browser_specific_settings"] = {"gecko": {"id": ADDON_ID, "strict_min_version": "128.0"}}
+    # Mozilla asks every new add-on what it collects: CleanStream collects nothing ("none"; that
+    # setting needs Firefox 140 or newer)
+    m["browser_specific_settings"] = {"gecko": {"id": ADDON_ID, "strict_min_version": "140.0",
+                                                "data_collection_permissions": {"required": ["none"]}}}
     if test:
         for cs in m["content_scripts"]:
             extra = []
