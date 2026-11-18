@@ -1,4 +1,4 @@
-// CleanStream on Netflix and Prime Video (language only; their picture is copy-protected): gets
+// CleanStream on Netflix and Prime Video (and Hulu and the others): gets
 // the English subtitles through the site's page script (netflix_page.js / prime_page.js), works
 // out what to mute with CleanView's word lists (captions.js), keeps the sound off from the start
 // of a title until that's done, and mutes at the right moments. Their subtitles give a line at a
@@ -10,7 +10,7 @@
   const TAG = "cleanstream", SITE = globalThis.CS_SITE;
   const CC = globalThis.CSCaptions, CS = globalThis.CSWords, S = globalThis.CSSettings;
   const st = { video: null, settings: null, ticks: null, tracks: null, plan: null, ranges: [],
-    status: "", captions: "waiting", weMuted: false, holding: false, scenes: [] };
+    status: "", captions: "waiting", weMuted: false, holding: false };
   globalThis.__cleanstreamState = st;
 
   // ---------- the status line ----------
@@ -199,7 +199,7 @@
       status: st.status, source: st.plan && "subtitles", now: v ? titleTime(v).t : 0,
       mutes: st.plan ? st.plan.mutes.map(m => ({ s: m.s, text: CS.mask(m.text), why: m.why, guess: false })) : [],
       left: st.plan ? st.plan.left.map(m => ({ s: m.s, text: m.text, why: m.why })) : [],
-      scenes: [], picture: null, site: SITE.name });
+      site: SITE.name });
   });
 
   (async () => { st.settings = await S.load(); check(); })();

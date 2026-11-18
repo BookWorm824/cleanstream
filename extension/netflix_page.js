@@ -1,7 +1,7 @@
 // Netflix (the owner, 2026-11-17: "yes. just language is fine"): runs inside Netflix's own page
 // (MAIN world, from the very start) so it can see the subtitle files Netflix's player downloads,
 // and ask the player for the English ones. It talks to netflix.js with window.postMessage.
-// The picture can't be checked on Netflix (copy protection): language only.
+// Language only, like all of CleanStream.
 (function () {
   if (window.__cleanstreamNetflix) return;
   window.__cleanstreamNetflix = true;

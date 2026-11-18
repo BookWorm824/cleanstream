@@ -1,6 +1,6 @@
 // CleanStream on a YouTube page: gets the video's captions (through page.js), works out what
-// to mute (captions.js, with CleanView's word lists), mutes at the right moments, skips
-// scenes the picture check found (picture.js), and shows a short status line on the video.
+// to mute (captions.js, with CleanView's word lists), mutes at the right moments, and shows a
+// short status line on the video. Language only (the owner, 2026-11-18: "language checker only").
 // Nothing is saved or copied: it all happens while the video plays.
 (function () {
   if (window.__cleanstream) return;
@@ -9,8 +9,8 @@
   const CC = globalThis.CSCaptions, CS = globalThis.CSWords, S = globalThis.CSSettings;
 
   const st = { video: null, settings: null, ticks: null, tracks: null, plan: null, ranges: [],
-    status: "", captions: "waiting", weMuted: false, scenes: [], skipped: 0, title: "" };
-  globalThis.__cleanstreamState = st;          // for the picture check and the tests
+    status: "", captions: "waiting", weMuted: false, title: "" };
+  globalThis.__cleanstreamState = st;          // for the tests
 
   // ---------- the status line on the video ----------
   let pill, pillTimer;
@@ -118,8 +118,7 @@
   }
 
   function startVideo(id) {
-    st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.scenes = [];
-    st.skipped = 0; st.captions = "waiting";
+    st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting";
     // early.js may have muted it before this started: take that mute over (so it's undone
     // when the captions are in, or now if CleanStream is off)
     const early = globalThis.__csEarlyMuted;
@@ -142,7 +141,6 @@
       window.postMessage({ [TAG]: "content", type: "get-captions", video: id }, "*");
     };
     setTimeout(ask, 800);
-    if (globalThis.CSPicture) globalThis.CSPicture.start(id, st);
   }
 
   window.addEventListener("message", e => {
@@ -174,14 +172,6 @@
     if (!v || !st.settings || !st.settings.on) return;
     if (adShowing()) { unmute(); return; }
     const t = v.currentTime, rate = v.playbackRate || 1;
-    // scenes to skip (from the picture check)
-    const sc = st.scenes.find(x => x.skip && t >= x.from - 0.3 && t < x.to);
-    if (sc && !v.seeking) {
-      v.currentTime = sc.to + 0.1;
-      st.skipped++;
-      say(`CleanStream skipped a scene (${sc.why.toLowerCase()}).`, 4);
-      return;
-    }
     // muted a moment early (the tick runs every 20 ms, and muting takes a moment to be heard)
     const want = st.holding || (!v.paused && inRange(t, st.ranges, 0.08 * rate));
     // muted whenever it should be, even when something (YouTube putting its own sound setting
@@ -236,13 +226,12 @@
   setInterval(check, 1000);
 
   chrome.storage.onChanged.addListener(async (changes, area) => {
-    if (area !== "sync") return;                 // "local" holds the picture check's results
+    if (area !== "sync") return;
     const was = st.settings && st.settings.on;
     st.settings = await S.load();
     if (!st.settings.on) { st.ranges = []; unmute(); return; }
     if (!was) { st.video = null; check(); return; }
     replan();
-    if (globalThis.CSPicture) globalThis.CSPicture.settingsChanged(st);
   });
 
   // ---------- the popup asks what was found ----------
@@ -253,9 +242,7 @@
       status: st.status, source: st.plan && st.plan.source, now: v ? v.currentTime : 0,
       mutes: st.plan ? st.plan.mutes.map(m => ({ s: m.s, text: CS.mask(m.text), why: m.why,
         guess: !m.timed })) : [],
-      left: st.plan ? st.plan.left.map(m => ({ s: m.s, text: m.text, why: m.why })) : [],
-      scenes: st.scenes.map(x => ({ from: x.from, to: x.to, why: x.why, skip: x.skip })),
-      picture: globalThis.CSPicture ? globalThis.CSPicture.report() : null });
+      left: st.plan ? st.plan.left.map(m => ({ s: m.s, text: m.text, why: m.why })) : [] });
   });
 
   (async () => { st.settings = await S.load(); check(); })();

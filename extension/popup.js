@@ -33,9 +33,8 @@
       prof.appendChild(b);
     }
     const ticks = S.ticksFor(s);
-    $("words").textContent = ""; $("picture").textContent = "";
-    for (const [key, label, group] of S.FILTERS)
-      $(group === "picture" ? "picture" : "words").appendChild(tickBox(key, label, ticks));
+    $("words").textContent = "";
+    for (const [key, label] of S.FILTERS) $("words").appendChild(tickBox(key, label, ticks));
     drawMine();
   }
 
@@ -116,7 +115,6 @@
     const n = r.mutes.length;
     let text = say || (n ? `${n} ${n === 1 ? "word or phrase" : "words or phrases"} will be muted.`
       : "Nothing to mute in the captions.");
-    if (r.picture && r.picture.say) text += " " + r.picture.say;
     set("video-say", text);
     // which captions it's going by: a sign when something's off (only written ones: no word times)
     set("video-src", {
@@ -124,12 +122,11 @@
       both: "Going by the video's written captions, timed by YouTube's automatic ones.",
       written: "Going by the video's written captions only, so word times are guessed.",
       subtitles: `Going by ${site}'s English subtitles (a line at a time, so each word's moment is ` +
-        `guessed and muted a little wider). Scenes aren't checked on ${site}.`,
+        `guessed and muted a little wider).`,
     }[r.source] || "");
     const items = [
       ...r.mutes.map(m => ({ t: m.s, w: m.text, why: m.why + (m.guess ? " (timing guessed)" : ""), cls: "" })),
       ...r.left.map(m => ({ t: m.s, w: m.text, why: "left alone: " + m.why, cls: "left" })),
-      ...r.scenes.filter(x => x.skip).map(x => ({ t: x.from, w: "Scene skipped", why: `${x.why}, ${clock(x.from)}–${clock(x.to)}`, cls: "" })),
     ].sort((a, b) => a.t - b.t);
     $("found-box").hidden = !items.length;
     set("found-head", "What was found");

@@ -1,10 +1,9 @@
 CleanStream (test version)
 ==========================
 
-CleanStream mutes bad language and skips nudity while a YouTube video plays,
-and mutes bad language on Netflix, Prime Video and Hulu (and Disney+, Max,
-Peacock and Paramount+). Nothing is copied or saved: it all happens as you
-watch.
+CleanStream mutes bad language while you watch YouTube, Netflix, Prime Video
+and Hulu (and Disney+, Max, Peacock and Paramount+). Nothing is copied or
+saved: it all happens as you watch.
 
 
 Putting it in Chrome (one time)
@@ -41,7 +40,6 @@ Using it
 - Click the green CleanStream button for the settings:
     Filtering for: Young kids / Kids / Teens / Adults
     Mute: the kinds of words to mute (the same groups as CleanView)
-    Skip scenes: nudity
     Your own words: anything else you always want muted
   "This video" shows what was found and when.
 - The switch at the top turns CleanStream off and on.
@@ -52,12 +50,8 @@ Good to know
 - It needs the video's captions (the auto-made ones are fine). A video with
   no English captions can't have its language muted.
 - If captions are on, bad words in them are shown as d***.
-- The nudity check runs a hidden, silent copy of the video a little ahead
-  of you. Signed in to YouTube, that copy may show up in your watch history.
-- On Netflix, Prime Video, Hulu and the others only the language is
-  filtered: their picture is locked by copy protection, so scenes can't be
-  checked there. CleanStream reads their English subtitles (without showing
-  them on Netflix and Prime) and mutes a little wider than on YouTube, since
-  they give a line at a time.
+- On Netflix, Prime Video, Hulu and the others CleanStream reads their
+  English subtitles (without showing them on Netflix and Prime) and mutes a
+  little wider than on YouTube, since they give a line at a time.
 - On Disney+, Max, Peacock and Paramount+ (and Hulu, if it says so), turn on
   English subtitles (CC) in the player: CleanStream reads them as they come.

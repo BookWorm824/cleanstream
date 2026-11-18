@@ -14,7 +14,6 @@
     ["sexref", "Sexual words (sex, sexy, condom…)", "words"],
     ["casual", "Sleeping around (slept with, an affair…)", "words"],
     ["crude", "Crude humor words (fart, poop…)", "words"],
-    ["nudity", "Nudity (skips the scene)", "picture"],
   ];
   const ALL = Object.fromEntries(FILTERS.map(([k]) => [k, true]));
   const PRESETS = {
@@ -23,7 +22,7 @@
     teens: { ...ALL, rude: false, minced: false, crude: false },
     adults: { ...ALL, minced: false, rude: false, crude: false },
   };
-  const DEFAULTS = { on: true, profile: "kids", ticks: {}, mine: "", picture: true };
+  const DEFAULTS = { on: true, profile: "kids", ticks: {}, mine: "" };
 
   async function load() {
     const s = await chrome.storage.sync.get(DEFAULTS);
