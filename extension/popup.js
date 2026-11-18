@@ -157,9 +157,13 @@
     const r = await fetch(UPDATE_URL, { cache: "no-store" });
     const latest = r.ok ? (await r.json()).version : null;
     if (latest && newer(latest, mine)) {
-      $("update-say").textContent = `A new version of CleanStream (${latest}) is ready. To get it, ` +
-        `double-click "Update CleanStream" on your desktop (the first time: the "update" file in ` +
-        `the CleanStream folder, which chrome://extensions shows under "Loaded from").`;
+      // Firefox updates the add-on itself (tools/make_firefox.py makes that copy)
+      $("update-say").textContent = /Firefox\//.test(navigator.userAgent)
+        ? `A new version of CleanStream (${latest}) is ready. Firefox gets it by itself; to get it now, ` +
+          `open Firefox's menu, then "Add-ons and themes", the gear button, and "Check for Updates".`
+        : `A new version of CleanStream (${latest}) is ready. To get it, ` +
+          `double-click "Update CleanStream" on your desktop (the first time: the "update" file in ` +
+          `the CleanStream folder, which chrome://extensions shows under "Loaded from").`;
       $("update-say").hidden = false;
     }
   } catch (e) { /* offline: say nothing */ }
