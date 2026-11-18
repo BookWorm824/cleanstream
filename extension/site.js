@@ -40,13 +40,23 @@
     while (lo <= hi) { const mid = (lo + hi) >> 1; if (ranges[mid][0] <= t + lead) lo = mid + 1; else hi = mid - 1; }
     return hi >= 0 && t < ranges[hi][1];
   }
-  function mute() { const v = videoEl(); if (v && !v.muted) { v.muted = true; st.weMuted = true; } }
-  function unmute() { const v = videoEl(); if (st.weMuted && v) v.muted = false; st.weMuted = false; }
+  // the element we muted is remembered: the site can swap its video for another mid-title
+  let mutedEl = null;
+  function mute() { const v = videoEl(); if (v && !v.muted) { v.muted = true; st.weMuted = true; mutedEl = v; } }
+  function unmute() {
+    const v = mutedEl || videoEl();
+    if (st.weMuted && v) v.muted = false;
+    st.weMuted = false; mutedEl = null;
+  }
+  /** Where the title is: the site's own clock when it has one (Prime: ads stitched in), else the video's. */
+  const titleTime = v => SITE.time ? SITE.time(v) : { t: v.currentTime, ad: false };
   function tick() {
     const v = videoEl();
     if (!v || !st.settings || !st.settings.on || !st.video) return;
+    if (st.weMuted && mutedEl && mutedEl !== v) unmute();       // swapped: let the old one go
     const rate = v.playbackRate || 1;
-    const want = st.holding || (!v.paused && inRange(v.currentTime, st.ranges, 0.08 * rate));
+    const at = titleTime(v);
+    const want = st.holding || (!v.paused && !at.ad && inRange(at.t, st.ranges, 0.08 * rate));
     if (want && !v.muted) mute();
     else if (!want && st.weMuted) unmute();
   }
@@ -138,6 +148,7 @@
   function startTitle(id) {
     st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting";
     pieces = new Map(); whole = false;
+    if (SITE.newTitle) SITE.newTitle();
     unmute(); hold(false);
     if (!id || !st.settings || !st.settings.on) return;
     hold(true);
@@ -185,7 +196,7 @@
     if (msg.type !== "state") return;
     const v = videoEl();
     reply({ video: st.video, title: document.title, captions: st.captions,
-      status: st.status, source: st.plan && "subtitles", now: v ? v.currentTime : 0,
+      status: st.status, source: st.plan && "subtitles", now: v ? titleTime(v).t : 0,
       mutes: st.plan ? st.plan.mutes.map(m => ({ s: m.s, text: CS.mask(m.text), why: m.why, guess: false })) : [],
       left: st.plan ? st.plan.left.map(m => ({ s: m.s, text: m.text, why: m.why })) : [],
       scenes: [], picture: null, site: SITE.name });
