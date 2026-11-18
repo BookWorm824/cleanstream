@@ -44,7 +44,9 @@
     ASS_ANIMAL_NEAR = set(W.ASS_ANIMAL_NEAR), ASS_INSULT_BEFORE = set(W.ASS_INSULT_BEFORE),
     ASS_BODY_BEFORE = set(W.ASS_BODY_BEFORE), ASS_ANIMAL_STRONG = set(W.ASS_ANIMAL_STRONG),
     FAGGOT_WOOD = set(W.FAGGOT_WOOD), BOOBY_BIRDS = set(W.BOOBY_BIRDS),
-    STUPID_DAZED_NEXT = set(W.STUPID_DAZED_NEXT), STUPID_DAZED_PREV = set(W.STUPID_DAZED_PREV);
+    STUPID_DAZED_NEXT = set(W.STUPID_DAZED_NEXT), STUPID_DAZED_PREV = set(W.STUPID_DAZED_PREV),
+    COON_WORDS = set(W.COON_WORDS), COON_INSULT_BEFORE = set(W.COON_INSULT_BEFORE),
+    COON_REACH = W.COON_REACH, THANK_GOD_AND = set(W.THANK_GOD_AND);
   const byLen = list => [...list].sort((a, b) => b.length - a.length);   // stable, as sorted()
   const DEITY = byLen(W.DEITY_PHRASES), RUDE_PH = byLen(W.RUDE_PHRASES), CRUDE = W.CRUDE_PHRASES;
 
@@ -118,6 +120,9 @@
     if ((last === "god" || last === "lord") && after[0] === "help" && after[1] === "me" &&
         after.length === 3 && HELP_NOT_OATH.has(after[2])) return true;
     if ((p === "dear god" || p === "dear lord") && prev === "please") return true;
+    // "Thank God and seek faith." (CleanView 1.18.133, Christy)
+    if ((p === "thank god" || p === "thank the lord") && after[0] === "and" &&
+        after.length > 1 && THANK_GOD_AND.has(after[1])) return true;
     if (p === "my god" && (MY_GOD_AFTER.has(prev) || CALL_YOU.has(two + " " + prev))) return true;
     return false;
   }
@@ -166,10 +171,18 @@
     return STUPID_DAZED_NEXT.has(nxt) || STUPID_DAZED_PREV.has(i ? words[i - 1] : "");
   }
 
+  // the raccoon (CleanView 1.18.133, cvcore.coon_animal): raccoon words close by, not said at someone
+  function coonAnimal(words, i) {
+    if (COON_INSULT_BEFORE.has(i ? words[i - 1] : "")) return false;
+    const around = words.slice(Math.max(0, i - COON_REACH), i).concat(words.slice(i + 1, i + 1 + COON_REACH));
+    return anyIn(COON_WORDS, around);
+  }
+
   function oldWordInnocent(words, i, wb) {
     const around = near(words, i - 10, i + 11);
     const meets = s => [...s].some(x => around.has(x));
     return ((wb === "ass" || wb === "asses") && assAnimal(words, i)) ||
+      ((wb === "coon" || wb === "coons") && coonAnimal(words, i)) ||
       ((wb === "faggot" || wb === "faggots") && meets(FAGGOT_WOOD)) ||
       ((wb === "boobies" || wb === "booby") && meets(BOOBY_BIRDS)) ||
       (wb === "stupid" && stupidDazed(words, i));

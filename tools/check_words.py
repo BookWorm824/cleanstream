@@ -24,7 +24,8 @@ TEST_FILES = ["test_words.py", "test_blasted.py", "test_lucy_lessons.py",
               "test_spanish_in_english.py", "test_west_side_story.py", "test_web_words.py",
               "test_hard_rule.py", "test_castle_s2e1_words.py", "test_aladdin.py",
               "test_black_beauty_words.py", "test_classics_words.py", "test_cleanlisten_words.py",
-              "test_forest_gump.py", "test_poi_s1e2.py", "test_poi_s1e3.py", "test_screwed_face.py"]
+              "test_forest_gump.py", "test_poi_s1e2.py", "test_poi_s1e3.py", "test_screwed_face.py",
+              "test_christy.py", "test_criminal_minds.py"]
 SENTENCES = [
     "Well that was a damn good idea", "Oh my God, shut up you idiot", "Shut it down now",
     "Screw you, I'm leaving", "What the hell is that", "Blast it all", "you blasted fool",
@@ -48,6 +49,10 @@ SENTENCES = [
     "darned his own socks", "darn it", "all pricks of conscience", "twit me about my looks",
     "Coons are trying to get into school", "a coon dog", "a Maine Coon",
     "Get your faggotty ass on the bus", "Two little dicky birds, titty birds",
+    # CleanView 1.18.133 (Christy, Criminal Minds)
+    "They be the best pets, that coon of mine", "the coon washes every blessed thing",
+    "you dirty coon", "the hounds treed a coon", "Thank God and seek faith", "Thank God you're here",
+    "Thank the Lord and pray for rain",
 ]
 GROUP_SETS = [["strong", "moderate", "mild", "deity", "minced", "samesex", "rude"],
               ["strong", "moderate"], ["mild", "deity"], ["minced", "rude"], ["samesex"]]

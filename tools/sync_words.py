@@ -93,6 +93,9 @@ def build():
         "ASS_BODY_BEFORE": sorted(cl.ASS_BODY_BEFORE), "ASS_ANIMAL_STRONG": sorted(cl.ASS_ANIMAL_STRONG),
         "FAGGOT_WOOD": sorted(cl.FAGGOT_WOOD), "BOOBY_BIRDS": sorted(cl.BOOBY_BIRDS),
         "STUPID_DAZED_NEXT": sorted(cl.STUPID_DAZED_NEXT), "STUPID_DAZED_PREV": sorted(cl.STUPID_DAZED_PREV),
+        # CleanView 1.18.133: the raccoon (coon_animal), "Thank God and seek faith" (prayer)
+        "COON_WORDS": sorted(cl.COON_WORDS), "COON_INSULT_BEFORE": sorted(cl.COON_INSULT_BEFORE),
+        "COON_REACH": cl.COON_REACH, "THANK_GOD_AND": sorted(cl.THANK_GOD_AND),
         # the short phrase lists that need no AI (cleanview.LINE_WORDS), and the rules around them
         # (samesex since CleanView 1.18.127: bi-curious, twink, shemale are only there)
         "LINE_WORDS": {k: js_regex(engine.LINE_WORDS[k]) for k in ("sexref", "casual", "crude", "samesex")},
