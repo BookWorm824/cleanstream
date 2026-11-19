@@ -3,8 +3,24 @@
 // short status line on the video. Language only (the owner, 2026-11-18: "language checker only").
 // Nothing is saved or copied: it all happens while the video plays.
 (function () {
-  if (window.__cleanstream) return;
-  window.__cleanstream = true;
+  // ---------- one copy at a time ----------
+  // An update reloads CleanStream: the copy already in this page is cut off from it, and
+  // background.js starts the new one here. A cut-off copy stops when a new one says so (0.4.20;
+  // the owner, 2026-11-19: Shorts needed a refresh after updating).
+  const RT = chrome.runtime;
+  const alive = () => { try { return !!(RT && RT.id); } catch (e) { return false; } };
+  const prior = window.__cleanstream;
+  if (prior && prior.alive && prior.alive()) return;          // a working copy is here already
+  window.__cleanstream = { alive };
+  let dead = false;
+  // A copy from before 0.4.20 can't be told to stop: it goes on muting by its own list, even with
+  // CleanStream turned off. Started by background.js over such a copy (__csTakeover), this one
+  // hands it a list with nothing in it after each answer it hears (it takes the last one); this
+  // copy ignores those.
+  const takeover = !!window.__csTakeover;
+  document.dispatchEvent(new CustomEvent("cleanstream-stop"));
+  const timers = [];                   // its repeating checks, stopped with it
+  let observer = null;                 // the captions-on-screen watcher
   const TAG = "cleanstream";
   const CC = globalThis.CSCaptions, CS = globalThis.CSWords, S = globalThis.CSSettings;
 
@@ -26,6 +42,7 @@
     st.status = text;
     const host = playerEl();
     if (!host) return;
+    for (const el of document.querySelectorAll("#cleanstream-status")) if (el !== pill) el.remove();   // an old copy's
     if (!pill || !host.contains(pill)) {
       pill = document.createElement("div");
       pill.id = "cleanstream-status";
@@ -94,7 +111,21 @@
     tick();
   }
 
+  // told to stop by a new copy (only when this one is cut off): the sound back as it was, and quiet
+  function stop() {
+    if (dead) return;
+    dead = true;
+    timers.forEach(clearInterval);
+    observer.disconnect();
+    clearTimeout(holdTimer); clearTimeout(pillTimer);
+    if (st.weMuted) { const v = videoEl(); if (v) v.muted = false; st.weMuted = false; }
+    st.holding = false; st.ranges = [];
+    if (pill) pill.remove();
+  }
+  document.addEventListener("cleanstream-stop", () => { if (!alive()) stop(); });
+
   function captionsArrived(d) {
+    if (dead) return;
     if (d.video !== st.video) return;
     // already muting from this video's captions: a later empty or failed answer changes nothing
     if (st.captions === "ok" && (d.error || d.none || (!d.written && !d.auto))) return;
@@ -181,7 +212,10 @@
   window.addEventListener("message", e => {
     const d = e.data;
     if (e.source !== window || !d || d[TAG] !== "page") return;
-    if (d.type === "captions-done") captionsArrived(d);
+    if (d.type !== "captions-done" || d.nothing) return;
+    captionsArrived(d);
+    if (takeover) window.postMessage({ [TAG]: "page", type: "captions-done", video: d.video, nothing: true,
+      written: null, auto: JSON.stringify({ events: [{ tStartMs: 0, dDurationMs: 100, segs: [{ utf8: "ok" }] }] }) }, "*");
   });
 
   // ---------- muting at the right moment ----------
@@ -203,6 +237,7 @@
     st.weMuted = false;
   }
   function tick() {
+    if (dead) return;
     const v = videoEl();
     if (!v || !st.settings || !st.settings.on) return;
     if (adShowing()) { unmute(); return; }
@@ -215,20 +250,20 @@
     if (want && !v.muted) mute();
     else if (!want && st.weMuted) unmute();
   }
-  setInterval(tick, 20);
+  timers.push(setInterval(tick, 20));
   document.addEventListener("seeked", tick, true);
   document.addEventListener("play", tick, true);
   // the sound turned on while CleanStream wants it off (YouTube restoring its own setting, or a
   // click on the speaker during a muted word or the first seconds): off again straight away
   document.addEventListener("volumechange", e => {
-    if (e.target !== videoEl() || e.target.muted) return;
+    if (dead || e.target !== videoEl() || e.target.muted) return;
     if (st.weMuted) st.weMuted = false;
     tick();
   }, true);
 
   // ---------- captions shown on screen: listed words shown as d***, so they aren't read ----------
   function maskShown() {
-    if (!st.settings || !st.settings.on || !st.ticks) return;
+    if (dead || !st.settings || !st.settings.on || !st.ticks) return;
     const cats = CS.catsFor(st.ticks);
     for (const seg of document.querySelectorAll("#movie_player .ytp-caption-segment, #shorts-player .ytp-caption-segment")) {
       if (seg.dataset.csShown === seg.textContent) continue;
@@ -242,14 +277,20 @@
       seg.dataset.csShown = out;
     }
   }
-  new MutationObserver(maskShown).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+  observer = new MutationObserver(maskShown);
+  observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 
   // ---------- following YouTube's page changes ----------
   function check() {
     // CleanStream was updated (it reloads itself): this page still runs the old copy
-    if (!(chrome.runtime && chrome.runtime.id) && !st.toldUpdated) {
-      st.toldUpdated = true;
-      say("CleanStream was updated. Press F5 to use the new version.", 12);
+    if (dead) return;
+    // cut off by an update, and no new copy came to take over within 5 seconds
+    if (!alive() && !st.toldUpdated) {
+      st.cutOff = st.cutOff || Date.now();
+      if (Date.now() - st.cutOff > 5000) {
+        st.toldUpdated = true;
+        say("CleanStream was updated. Press F5 to use the new version.", 12);
+      }
     }
     const id = currentVideo();
     if (id !== st.video) {
@@ -258,10 +299,10 @@
     }
   }
   document.addEventListener("yt-navigate-finish", () => setTimeout(check, 300));
-  setInterval(check, 1000);
+  timers.push(setInterval(check, 1000));
 
   chrome.storage.onChanged.addListener(async (changes, area) => {
-    if (area !== "sync") return;
+    if (area !== "sync" || dead) return;
     const was = st.settings && st.settings.on;
     st.settings = await S.load();
     if (!st.settings.on) { st.ranges = []; unmute(); return; }
@@ -271,7 +312,7 @@
 
   // ---------- the popup asks what was found ----------
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-    if (msg.type !== "state") return;
+    if (msg.type !== "state" || dead) return;
     const v = videoEl();
     reply({ video: st.video, title: document.title.replace(/ - YouTube$/, ""), captions: st.captions,
       status: st.status, source: st.plan && st.plan.source, now: v ? v.currentTime : 0,

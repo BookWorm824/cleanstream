@@ -5,8 +5,23 @@
 // time, so each word's moment is guessed within its line and muted a little wider (as YouTube's
 // written captions). What differs per site is in CS_SITE (site_netflix.js / site_prime.js).
 (function () {
-  if (window.__cleanstreamSite) return;
-  window.__cleanstreamSite = true;
+  // ---------- one copy at a time ----------
+  // An update reloads CleanStream: the copy already in this page is cut off from it, and
+  // background.js starts the new one here. A cut-off copy stops when a new one says so (0.4.20;
+  // the owner, 2026-11-19: Shorts needed a refresh after updating).
+  const RT = chrome.runtime;
+  const alive = () => { try { return !!(RT && RT.id); } catch (e) { return false; } };
+  const prior = window.__cleanstreamSite;
+  if (prior && prior.alive && prior.alive()) return;          // a working copy is here already
+  window.__cleanstreamSite = { alive };
+  let dead = false;
+  // A copy from before 0.4.20 can't be told to stop: it goes on muting by its own list, even with
+  // CleanStream turned off. Started by background.js over such a copy (__csTakeover), this one
+  // hands it a list with nothing in it after each answer it hears (it takes the last one); this
+  // copy ignores those.
+  const takeover = !!window.__csTakeover;
+  document.dispatchEvent(new CustomEvent("cleanstream-stop"));
+  const timers = [];                   // its repeating checks, stopped with it
   const TAG = "cleanstream", SITE = globalThis.CS_SITE;
   const CC = globalThis.CSCaptions, CS = globalThis.CSWords, S = globalThis.CSSettings;
   const st = { video: null, settings: null, ticks: null, tracks: null, plan: null, ranges: [],
@@ -18,6 +33,7 @@
   function say(text, secs = 6) {
     st.status = text;
     const host = SITE.host() || document.body;
+    for (const el of document.querySelectorAll("#cleanstream-status")) if (el !== pill) el.remove();   // an old copy's
     if (!pill || !host.contains(pill)) {
       pill = document.createElement("div");
       pill.id = "cleanstream-status";
@@ -81,6 +97,7 @@
     return isFinite(d) && d > 0 && d <= AD_LONGEST && st.lastCue > d + 60;
   }
   function tick() {
+    if (dead) return;
     const v = videoEl();
     if (!v || !st.settings || !st.settings.on || !st.video) return;
     if (st.weMuted && mutedEl && mutedEl !== v) unmute();       // swapped: let the old one go
@@ -92,13 +109,13 @@
     if (want && !v.muted) mute();
     else if (!want && st.weMuted) unmute();
   }
-  setInterval(tick, 20);
+  timers.push(setInterval(tick, 20));
   document.addEventListener("seeked", tick, true);
   document.addEventListener("play", tick, true);
   document.addEventListener("playing", tick, true);
   document.addEventListener("loadstart", tick, true);
   document.addEventListener("volumechange", e => {
-    if (e.target !== videoEl() || e.target.muted) return;
+    if (dead || e.target !== videoEl() || e.target.muted) return;
     if (st.weMuted) st.weMuted = false;
     tick();
   }, true);
@@ -117,6 +134,18 @@
     }, HOLD_MOST * 1000);
     tick();
   }
+
+  // told to stop by a new copy (only when this one is cut off): the sound back as it was, and quiet
+  function stop() {
+    if (dead) return;
+    dead = true;
+    timers.forEach(clearInterval); clearTimeout(replanTimer);
+    clearTimeout(holdTimer); clearTimeout(pillTimer);
+    if (st.weMuted) { const v = videoEl(); if (v) v.muted = false; st.weMuted = false; }
+    st.holding = false; st.ranges = [];
+    if (pill) pill.remove();
+  }
+  document.addEventListener("cleanstream-stop", () => { if (!alive()) stop(); });
 
   // Subtitles that come in pieces as the video plays (Disney+, Max...: only with subtitles turned
   // on): each piece's lines are added, and the plan made again.
@@ -196,7 +225,9 @@
   const early = [];
   window.addEventListener("message", e => {
     const d = e.data;
-    if (e.source !== window || !d || d[TAG] !== SITE.pageTag) return;
+    if (dead || e.source !== window || !d || d[TAG] !== SITE.pageTag || d.nothing) return;
+    if (takeover && d.title) window.postMessage({ [TAG]: SITE.pageTag, type: "subs-done", title: d.title, nothing: true,
+      text: "WEBVTT\n\n00:00:00.000 --> 00:00:00.100\nok\n" }, "*");
     if (!ready) { early.push(d); return; }
     handle(d);
   });
@@ -214,18 +245,23 @@
 
   // ---------- following the page's changes (neither site reloads between titles) ----------
   function check() {
-    if (!(chrome.runtime && chrome.runtime.id) && !st.toldUpdated) {
-      st.toldUpdated = true;
-      say("CleanStream was updated. Press F5 to use the new version.", 12);
+    if (dead) return;
+    // cut off by an update, and no new copy came to take over within 5 seconds
+    if (!alive() && !st.toldUpdated) {
+      st.cutOff = st.cutOff || Date.now();
+      if (Date.now() - st.cutOff > 5000) {
+        st.toldUpdated = true;
+        say("CleanStream was updated. Press F5 to use the new version.", 12);
+      }
     }
     if (!SITE.titleFromUrl) return;
     const id = SITE.titleFromUrl();
     if (id !== st.video) startTitle(id);
   }
-  setInterval(check, 500);
+  timers.push(setInterval(check, 500));
 
   chrome.storage.onChanged.addListener(async (changes, area) => {
-    if (area !== "sync") return;
+    if (area !== "sync" || dead) return;
     const was = st.settings && st.settings.on;
     st.settings = await S.load();
     if (!st.settings.on) { st.ranges = []; hold(false); unmute(); return; }
@@ -235,7 +271,7 @@
 
   // ---------- the settings window asks what was found ----------
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-    if (msg.type !== "state") return;
+    if (msg.type !== "state" || dead) return;
     const v = videoEl();
     reply({ video: st.video, title: document.title, captions: st.captions,
       status: st.status, source: st.plan && "subtitles", now: v ? titleTime(v).t : 0,

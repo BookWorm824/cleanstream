@@ -15,6 +15,39 @@ async function checkFiles() {
 chrome.alarms.create("check-files", { periodInMinutes: 1 });
 chrome.alarms.onAlarm.addListener(a => { if (a.name === "check-files") checkFiles(); });
 
+// After an update (CleanStream reloads itself) or a first install, pages already open keep the
+// old copy, cut off from CleanStream, until they're reloaded (the owner, 2026-11-19: Shorts
+// needed a refresh after updating). So the new copy is started in them now, in the manifest's
+// order; it tells the old one to stop. The page scripts (world MAIN) are only started where
+// they aren't there yet: they need nothing from CleanStream, so the old ones go on working.
+async function startInOpenTabs() {
+  if (!chrome.scripting || !chrome.tabs) return;
+  const perTab = new Map();                       // tab -> the manifest's script groups for it
+  for (const cs of chrome.runtime.getManifest().content_scripts || []) {
+    let tabs = [];
+    try { tabs = await chrome.tabs.query({ url: cs.matches }); } catch (e) { continue; }
+    for (const tab of tabs) {
+      if (tab.discarded || tab.status === "unloaded") continue;
+      if (!perTab.has(tab.id)) perTab.set(tab.id, []);
+      perTab.get(tab.id).push(cs);
+    }
+  }
+  await Promise.all([...perTab].map(async ([tabId, groups]) => {
+    try {                                          // the new copy knows it's taking over (content.js)
+      await chrome.scripting.executeScript({ target: { tabId }, func: () => { window.__csTakeover = true; } });
+    } catch (e) { return; }
+    for (const cs of groups) {
+      try {
+        await chrome.scripting.executeScript({ target: { tabId }, files: cs.js,
+          world: cs.world === "MAIN" ? "MAIN" : "ISOLATED" });
+      } catch (e) { return; }                     // a page that can't take it: left as it was
+    }
+  }));
+}
+chrome.runtime.onInstalled.addListener(d => {
+  if (d.reason === "update" || d.reason === "install") startInOpenTabs();
+});
+
 // CleanStream is language only since 0.4.0 (the owner, 2026-11-18): the old nudity check's
 // saved results ("pic:<video>") and its setting are cleared away
 chrome.runtime.onInstalled.addListener(async () => {

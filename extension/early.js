@@ -6,6 +6,13 @@
 (function () {
   if (window.top !== window) return;
   let on = true;
+  // cut off by an update, and a new copy started here: this one stops (0.4.20)
+  const RT = chrome.runtime;
+  let stopped = false;
+  document.addEventListener("cleanstream-stop", () => {
+    try { if (RT && RT.id) return; } catch (e) { /* cut off */ }
+    stopped = true;
+  });
   chrome.storage.sync.get({ on: true }).then(s => { on = s.on !== false; }, () => {});
   globalThis.__csArmed = true;                      // content.js disarms it when it takes over
   globalThis.__csEarlyMuted = false;                // ... and adopts this mute (to undo it later)
@@ -15,14 +22,14 @@
   const adOn = () => !!document.querySelector("#movie_player.ad-showing, #shorts-player.ad-showing");
   const hush = e => {
     const v = e.target;
-    if (!globalThis.__csArmed || !on || !(v instanceof HTMLVideoElement) || !v.closest(PLAYERS)) return;
+    if (stopped || !globalThis.__csArmed || !on || !(v instanceof HTMLVideoElement) || !v.closest(PLAYERS)) return;
     if (!watching() || adOn()) return;
     if (!v.muted) { v.muted = true; globalThis.__csEarlyMuted = true; }
   };
   for (const type of ["loadstart", "loadeddata", "canplay", "play", "playing"]) document.addEventListener(type, hush, true);
   // YouTube puts back its own volume setting as it loads: mute again until content.js takes over
   document.addEventListener("volumechange", e => {
-    if (globalThis.__csArmed && on && e.target instanceof HTMLVideoElement &&
+    if (!stopped && globalThis.__csArmed && on && e.target instanceof HTMLVideoElement &&
         e.target.closest(PLAYERS) && !e.target.muted && watching() && !adOn()) {
       e.target.muted = true; globalThis.__csEarlyMuted = true;
     }

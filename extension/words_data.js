@@ -1,7 +1,7 @@
 // Made by tools/sync_words.py from CleanView's word lists. Don't edit by hand:
 // change the words in CleanView, then run the tool again.
 globalThis.CV_WORDS = {
-"from": "CleanView 1.18.140",
+"from": "CleanView 1.18.141",
 "STRONG": [
 ".*fuck.*",
 "cunts?",
@@ -469,6 +469,26 @@ globalThis.CV_WORDS = {
 "thank",
 "the",
 "lord"
+],
+[
+"wish",
+"to",
+"god"
+],
+[
+"wished",
+"to",
+"god"
+],
+[
+"hope",
+"to",
+"god"
+],
+[
+"hoped",
+"to",
+"god"
 ],
 [
 "in",
