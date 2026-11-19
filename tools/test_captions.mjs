@@ -167,4 +167,15 @@ test("Spanish: words on screen starred in their own language", () => {
   assert.equal(globalThis.CSWords.mask("coño"), "c***");
 });
 
+test("CleanView 1.18.144: a hen's cuck-cuck, 'Darn her,' as the oath, the bottles had been drunk", () => {
+  const ticks = { ...kids, sexref: true, crude: true, minced: true };
+  const said = t => CC.plan({ written: CC.readJson3({ events: [written(0, 3000, t)] }, false) }, ticks).mutes.map(m => m.text);
+  assert.deepEqual(said("The hen said cuck cuck and ran off."), []);
+  assert.deepEqual(said("Don't be such a cuck."), ["cuck."]);
+  assert.deepEqual(said("Darn her, exploded Davy."), ["Darn"]);
+  assert.deepEqual(said("She sat down to darn her stockings."), []);
+  assert.deepEqual(said("a most surprising number of the bottles had been drunk out"), []);
+  assert.deepEqual(said("Two bottles had been opened and Tom was drunk."), ["drunk."]);
+});
+
 console.log(`${passed} passed`);

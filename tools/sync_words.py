@@ -109,6 +109,8 @@ def build():
         # CleanView 1.18.133: the raccoon (coon_animal), "Thank God and seek faith" (prayer)
         "COON_WORDS": sorted(cl.COON_WORDS), "COON_INSULT_BEFORE": sorted(cl.COON_INSULT_BEFORE),
         "COON_REACH": cl.COON_REACH, "THANK_GOD_AND": sorted(cl.THANK_GOD_AND),
+        # CleanView 1.18.144 (CleanListen cfdc3db): "Darn her," exploded Davy (darn_oath)
+        **{k: sorted(getattr(cl, k, ())) for k in ("SAID_VERBS", "DARN_NEW_SENTENCE", "DARN_CURSED")},
         # the short phrase lists that need no AI (cleanview.LINE_WORDS), and the rules around them
         # (samesex since CleanView 1.18.127: bi-curious, twink, shemale are only there)
         # forensic ("Coroner and doctor talk") since CleanStream 0.4.6 (the owner, 2026-11-18:
@@ -122,7 +124,8 @@ def build():
         "DRUNK_BEFORE": sorted(engine.DRUNK_BEFORE), "DRUNK_NEXT": sorted(engine.DRUNK_NEXT),
         # cleanview.drunk_old_use (1.18.140): "the toast was drunk", "drunk by the gods", "drunk with joy"
         **{k: sorted(getattr(engine, k, ())) for k in ("DRUNK_THING", "DRUNK_BE", "DRUNK_SOMEONE", "DRUNK_WHOSE",
-                                                       "DRUNK_BY_NOT", "DRUNK_FEELING")},
+                                                       "DRUNK_BY_NOT", "DRUNK_FEELING", "DRUNK_AUX",
+                                                       "HEN_SOUNDS")},     # 1.18.144: "had been drunk", a hen's "cuck-cuck"
         "STONED_NEXT": sorted(engine.STONED_NEXT), "STONED_BEFORE2": sorted(engine.STONED_BEFORE2),
         "PERCOCET_MISUSE": sorted(engine.PERCOCET_MISUSE), "PERCOCET_REACH": engine.PERCOCET_REACH,
         "JUNKIE_NOT": sorted(engine.JUNKIE_NOT), "HIGH_NOT_NEXT": sorted(engine.HIGH_NOT_NEXT),

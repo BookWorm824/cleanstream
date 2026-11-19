@@ -134,7 +134,8 @@
     PERCOCET_MISUSE = setOf("PERCOCET_MISUSE"), JUNKIE_NOT = setOf("JUNKIE_NOT"), HIGH_NOT_NEXT = setOf("HIGH_NOT_NEXT"),
     SHOOT_UP_OK_NEXT = setOf("SHOOT_UP_OK_NEXT"), STRUNG_NOT_NEXT = setOf("STRUNG_NOT_NEXT"),
     SHOOT_UP_THINGS = setOf("SHOOT_UP_THINGS"), DRUNK_THING = setOf("DRUNK_THING"), DRUNK_BE = setOf("DRUNK_BE"),
-    DRUNK_SOMEONE = setOf("DRUNK_SOMEONE"), DRUNK_WHOSE = setOf("DRUNK_WHOSE"), DRUNK_BY_NOT = setOf("DRUNK_BY_NOT"), DRUNK_FEELING = setOf("DRUNK_FEELING");
+    DRUNK_SOMEONE = setOf("DRUNK_SOMEONE"), DRUNK_WHOSE = setOf("DRUNK_WHOSE"), DRUNK_BY_NOT = setOf("DRUNK_BY_NOT"), DRUNK_FEELING = setOf("DRUNK_FEELING"),
+    DRUNK_AUX = setOf("DRUNK_AUX"), HEN_SOUNDS = setOf("HEN_SOUNDS");
   const PERCOCET_REACH = W.PERCOCET_REACH || 10, JOIN_NEXT_SECS = W.JOIN_NEXT_SECS || 2;
   const wordsOf = t => t.toLowerCase().match(/[a-z']+/g) || [];
   const before = (text, m, n) => wordsOf(text.slice(0, m.index)).slice(-n);
@@ -153,6 +154,12 @@
     const f = m[0].toLowerCase();
     return f.startsWith("rub") && f.endsWith("ball") && nearBy(text, m, 8).some(w => BALL_GAME.has(w));
   }
+  // a hen's "Cuck-cuck-cuck-cur-r-r!": "cuck" next to another "cuck" or a clucking sound is the
+  // noise, not the slang (cleanview.hen_sound, CleanView 1.18.144)
+  function henSound(text, m) {
+    if (!m[0].toLowerCase().startsWith("cuck") || m[0].length > 5) return false;
+    return nearBy(text, m, 2).some(w => HEN_SOUNDS.has(w));
+  }
   // a drink that "was drunk", "drunk by the gods", "thou hast drunk", "drunk with joy"
   // (cleanview.drunk_old_use, CleanView 1.18.140)
   function drunkOldUse(text, m, prev) {
@@ -169,7 +176,9 @@
         if (last >= 0 && !subject.some(w => DRUNK_SOMEONE.has(w))) {
           const between = subject.slice(last + 1);
           // "the wine that was drunk at the wedding" (CleanView 1.18.143)
-          if (!between.length || (between.length === 1 && between[0] === "that") || DRUNK_WHOSE.has(between[0])) return true;
+          // or only helping words: "the bottles had been drunk" (CleanView 1.18.144)
+          if (!between.length || (between.length === 1 && between[0] === "that") || DRUNK_WHOSE.has(between[0]) ||
+              between.every(w => DRUNK_AUX.has(w))) return true;
         }
         break;
       }
@@ -223,7 +232,7 @@
   }
   /** Is this short-list find innocent where it stands? (cleanview.Listed's innocent) */
   function innocent(key, text, m) {
-    if (key === "sexref") return stripperTool(text, m) || wienerDog(text, m) || ballGame(text, m);
+    if (key === "sexref") return stripperTool(text, m) || wienerDog(text, m) || ballGame(text, m) || henSound(text, m);
     if (key === "crude") return drunkDrink(text, m);
     if (key === "drugtalk") return stonedRocks(text, m) || percocetMedical(text, m) || drugSlangInnocent(text, m);
     return false;

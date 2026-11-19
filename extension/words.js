@@ -131,6 +131,10 @@
   const shutUpClosed = prev => SHUT_UP_CLOSED_PREV.has(prev) || prev.endsWith("'s") || prev.endsWith("’s");
   const foolCalled = (wb, prev, nxt) => wb === "fool" && nxt !== "of" && FOOL_NOUN_PREV.has(prev);
   const dumbCalled = (wb, prev) => wb === "dumb" && DUMB_CALLED_PREV.has(prev);
+  // "Darn her," exploded Davy: "darn her/his/the" with nothing darned after it is the oath, not
+  // "darn her stockings" (cvcore.darn_oath, CleanView 1.18.144)
+  const DARN_END = set([...(W.SAID_VERBS || []), ...(W.DARN_NEW_SENTENCE || []), ...(W.DARN_CURSED || [])]);
+  const darnOath = (words, i) => words[i] === "darn" && (i + 2 >= words.length || DARN_END.has(words[i + 2]));
 
   function jerkMotion(words, i) {
     if (words[i] !== "jerk" && words[i] !== "jerks") return false;
@@ -278,7 +282,7 @@
           if (w === "bloody" && !BLOODY_SWEAR_NEXT.has(nxt)) break;
           if (FREAK_WORDS.has(w) && words.slice(i + 1, i + 3).includes("out")) break;
           if ((INNOCENT_NEXT[wb] && INNOCENT_NEXT[wb].has(nxt) && !foolCalled(wb, prev, nxt) &&
-                !dumbCalled(wb, prev)) ||
+                !dumbCalled(wb, prev) && !darnOath(words, i)) ||
               ((wb === "jerk" || wb === "jerks") && jerkMotion(words, i)) ||
               (PUSSY_WORDS.has(wb) && pussyCat(words, i)) ||
               oldWordInnocent(words, i, wb) ||

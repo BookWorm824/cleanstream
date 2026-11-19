@@ -25,7 +25,7 @@ TEST_FILES = ["test_words.py", "test_blasted.py", "test_lucy_lessons.py",
               "test_hard_rule.py", "test_castle_s2e1_words.py", "test_aladdin.py",
               "test_black_beauty_words.py", "test_classics_words.py", "test_cleanlisten_words.py",
               "test_forest_gump.py", "test_poi_s1e2.py", "test_poi_s1e3.py", "test_screwed_face.py",
-              "test_christy.py", "test_criminal_minds.py"]
+              "test_christy.py", "test_criminal_minds.py", "test_classics_recheck.py"]
 SENTENCES = [
     "Well that was a damn good idea", "Oh my God, shut up you idiot", "Shut it down now",
     "Screw you, I'm leaving", "What the hell is that", "Blast it all", "you blasted fool",
