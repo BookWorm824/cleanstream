@@ -51,11 +51,17 @@
   };
 
   // ---- asking the player for the English subtitles ----
-  function player() {
+  function player(title) {
     try {
       const vp = window.netflix.appContext.state.playerApp.getAPI().videoPlayer;
-      const id = vp.getAllPlayerSessionIds()[0];
-      return id ? vp.getVideoPlayerBySessionId(id) : null;
+      // Netflix keeps more than one player going (the episode before, previews): the one
+      // playing this title, else the newest "watch" one, else the newest (the owner,
+      // 2026-11-18: the first episode worked, the next two said "no subtitle")
+      const all = vp.getAllPlayerSessionIds().map(id => ({ id: String(id), p: vp.getVideoPlayerBySessionId(id) })).filter(x => x.p);
+      const movie = x => { try { return String(x.p.getMovieId()); } catch (e) { return ""; } };
+      const pick = (title != null && all.filter(x => movie(x) === String(title)).pop()) ||
+        all.filter(x => /^watch/i.test(x.id)).pop() || all.pop();
+      return pick ? pick.p : null;
     } catch (e) { return null; }
   }
   function hideSubs(on) {
@@ -103,8 +109,10 @@
     const tracks = ids.map(id => manifests.get(String(id))).find(Boolean);
     if (!tracks) return null;
     const real = tracks.filter(t => t && !t.isNoneTrack && !t.isForcedNarrative);
-    const en = real.filter(isEnglish).filter(fileOf);
-    if (!en.length) return real.length ? { none: true, others: real.filter(t => !isEnglish(t)).length } : null;
+    const english = real.filter(isEnglish), en = english.filter(fileOf);
+    // English listed without its file yet (Netflix fills that in when the track is chosen)
+    // isn't "none": the player is asked instead
+    if (!en.length) return real.length && !english.length ? { none: true, others: real.length } : null;
     const pick = en.find(isCC) || en[0];
     for (const url of fileOf(pick).slice(0, 3)) {
       try {
@@ -116,12 +124,13 @@
   }
 
   /** Through the player: choose the English track (hidden), and keep the file it downloads. */
-  async function fromPlayer(p, list, en) {
+  async function fromPlayer(p, list, en, since) {
     // the closed captions (they have every line, and sounds) before plain subtitles
     const pick = en.find(isCC) || en[0];
     const before = p.getTimedTextTrack && p.getTimedTextTrack();
     const already = before && before.trackId === pick.trackId;
-    if (already && got.length) return got[got.length - 1].text;
+    const recent = got.filter(g => g.at >= since - 3000);
+    if (already && recent.length) return recent[recent.length - 1].text;
     hideSubs(!already);
     const n = got.length;
     try {
@@ -138,11 +147,11 @@
 
   let asking = 0;
   async function getSubs(title) {
-    const mine = ++asking;
+    const mine = ++asking, since = Date.now();
     let p = null, sawTracks = 0;
     // up to 20 s for the title's list or the player's tracks to be there
     for (let k = 0; k < 80 && mine === asking; k++) {
-      p = player();
+      p = player(title);
       const ids = [title];
       try { if (p && p.getMovieId) ids.push(p.getMovieId()); } catch (e) { /* no id */ }
       const m = await fromManifest(ids);
@@ -151,12 +160,12 @@
       const real = list.filter(t => t && !t.isNoneTrack && !t.isForcedNarrative);
       const en = real.filter(isEnglish);
       if (en.length) {
-        const text = await fromPlayer(p, list, en);
+        const text = await fromPlayer(p, list, en, since);
         return said("subs-done", { title, text, error: text ? undefined : "no download" });
       }
-      // "no English" only when a full list says so, and has stayed that way for 3 s
-      if (real.length || (m && m.none)) sawTracks++;
-      if (sawTracks > 12) return said("subs-done", { title, none: true, others: real.length || (m && m.others) || 0 });
+      // "no English" only when a full list says so, and has stayed that way for 5 s
+      if (real.length || (m && m.none)) sawTracks++; else sawTracks = 0;
+      if (sawTracks > 20) return said("subs-done", { title, none: true, others: real.length || (m && m.others) || 0 });
       await wait(250);
     }
     if (mine === asking) said("subs-done", { title, error: p ? "no tracks" : "no player" });
