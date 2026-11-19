@@ -17,6 +17,9 @@
     // CleanView's "Coroner and doctor talk" (0.4.6; the owner, 2026-11-18: a crime word went
     // through): unticked for Adults, as in CleanView
     ["forensic", "Coroner and crime talk (autopsy, sexual assault…)", "words"],
+    // CleanView 1.18.137's "Drug talk and slang" (the owner: "Yes, add it everywhere" to
+    // "stoned"): ticked for every age, as in CleanView
+    ["drugtalk", "Drug talk and slang (stoned, junkie, getting high…)", "words"],
   ];
   const ALL = Object.fromEntries(FILTERS.map(([k]) => [k, true]));
   const PRESETS = {

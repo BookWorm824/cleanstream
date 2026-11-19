@@ -42,6 +42,13 @@ def js_regex(rx):
     src = rx.pattern
     if src.startswith("(?i)"):
         src, flags = src[4:], "i"
+    # Python's \b counts accented letters as letters, JavaScript's doesn't ("risqué" at the end
+    # of a pattern never matched): the pattern's outer edges spelled out with them
+    edge = "A-Za-z0-9_\\u00C0-\\u024F"
+    if src.startswith(r"\b"):
+        src = f"(?<![{edge}])" + src[2:]
+    if src.endswith(r"\b") and not src.endswith(r"\\b"):
+        src = src[:-2] + f"(?![{edge}])"
     return [src, flags]
 
 
@@ -100,7 +107,18 @@ def build():
         # (samesex since CleanView 1.18.127: bi-curious, twink, shemale are only there)
         # forensic ("Coroner and doctor talk") since CleanStream 0.4.6 (the owner, 2026-11-18:
         # "it let r*** through")
-        "LINE_WORDS": {k: js_regex(engine.LINE_WORDS[k]) for k in ("sexref", "casual", "crude", "samesex", "forensic")},
+        # drugtalk since CleanView 1.18.137 (the owner: "Yes, add it everywhere" to "stoned")
+        "LINE_WORDS": {k: js_regex(engine.LINE_WORDS[k])
+                       for k in ("sexref", "casual", "crude", "samesex", "forensic", "drugtalk")},
+        # the guards around them (cleanview.wiener_dog, ball_game, drunk_drink, stoned_rocks,
+        # percocet_medical, drug_slang_innocent; 1.18.137) and the split-phrase window
+        "WIENER_DOG": sorted(engine.WIENER_DOG), "BALL_GAME": sorted(engine.BALL_GAME),
+        "DRUNK_BEFORE": sorted(engine.DRUNK_BEFORE), "DRUNK_NEXT": sorted(engine.DRUNK_NEXT),
+        "STONED_NEXT": sorted(engine.STONED_NEXT), "STONED_BEFORE2": sorted(engine.STONED_BEFORE2),
+        "PERCOCET_MISUSE": sorted(engine.PERCOCET_MISUSE), "PERCOCET_REACH": engine.PERCOCET_REACH,
+        "JUNKIE_NOT": sorted(engine.JUNKIE_NOT), "HIGH_NOT_NEXT": sorted(engine.HIGH_NOT_NEXT),
+        "SHOOT_UP_OK_NEXT": sorted(engine.SHOOT_UP_OK_NEXT), "STRUNG_NOT_NEXT": sorted(engine.STRUNG_NOT_NEXT),
+        "JOIN_NEXT_SECS": engine.JOIN_NEXT_SECS,
         "LIST_WORD_TRIM": js_regex(engine.LIST_WORD_TRIM),
         "STRIPPER_NEXT": sorted(engine.STRIPPER_NEXT),
         "STRIPPER_BEFORE": sorted(engine.STRIPPER_BEFORE),

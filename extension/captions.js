@@ -122,7 +122,71 @@
   const LABEL = { strong: "Swearing", moderate: "Swearing", mild: "Mild word", deity: "God's name",
     minced: "Soft substitute", samesex: "Same-sex word", rude: "Rude word", mine: "Your word",
     sexref: "Sexual reference", casual: "Sleeping around", crude: "Crude humor",
-    forensic: "Coroner and crime talk" };
+    forensic: "Coroner and crime talk", drugtalk: "Drug talk" };
+
+  // ---------- the guards around the short lists (cleanview.py, CleanView 1.18.137) ----------
+  const setOf = k => new Set(W[k] || []);
+  const WIENER_DOG = setOf("WIENER_DOG"), BALL_GAME = setOf("BALL_GAME"), DRUNK_BEFORE = setOf("DRUNK_BEFORE"),
+    DRUNK_NEXT = setOf("DRUNK_NEXT"), STONED_NEXT = setOf("STONED_NEXT"), STONED_BEFORE2 = setOf("STONED_BEFORE2"),
+    PERCOCET_MISUSE = setOf("PERCOCET_MISUSE"), JUNKIE_NOT = setOf("JUNKIE_NOT"), HIGH_NOT_NEXT = setOf("HIGH_NOT_NEXT"),
+    SHOOT_UP_OK_NEXT = setOf("SHOOT_UP_OK_NEXT"), STRUNG_NOT_NEXT = setOf("STRUNG_NOT_NEXT");
+  const PERCOCET_REACH = W.PERCOCET_REACH || 10, JOIN_NEXT_SECS = W.JOIN_NEXT_SECS || 2;
+  const wordsOf = t => t.toLowerCase().match(/[a-z']+/g) || [];
+  const before = (text, m, n) => wordsOf(text.slice(0, m.index)).slice(-n);
+  const afterWords = (text, m, n) => wordsOf(text.slice(m.index + m[0].length)).slice(0, n);
+  const nearBy = (text, m, n) => [...before(text, m, n), ...afterWords(text, m, n)];
+  // the next word, but not past the end of the sentence (lines are read with the next joined on)
+  const nextWord = (text, m, stops = /^\s*[.!?;]/) => {
+    const rest = text.slice(m.index + m[0].length);
+    return stops.test(rest) ? null : (wordsOf(rest)[0] || null);
+  };
+
+  function wienerDog(text, m) {          // "little wiener" said of a dog or food
+    return m[0].toLowerCase().startsWith("little w") && nearBy(text, m, 8).some(w => WIENER_DOG.has(w));
+  }
+  function ballGame(text, m) {           // "rubbing his ball" (one ball) said of a game or a thing
+    const f = m[0].toLowerCase();
+    return f.startsWith("rub") && f.endsWith("ball") && nearBy(text, m, 8).some(w => BALL_GAME.has(w));
+  }
+  function drunkDrink(text, m) {         // "had drunk his tea": what was drunk, not being drunk
+    if (m[0].toLowerCase() !== "drunk") return false;
+    const prev = before(text, m, 1)[0], nxt = nextWord(text, m);
+    if (nxt && DRUNK_NEXT.has(nxt)) return true;
+    if (prev && DRUNK_BEFORE.has(prev))
+      return !["he's", "she's"].includes(prev) || (!!nxt && ["the", "a", "an", "his", "her", "my", "your", "their",
+        "our", "it", "all", "some", "that", "this", "too", "enough", "every"].includes(nxt));
+    return false;
+  }
+  function stonedRocks(text, m) {        // a stoning or pitted fruit, not high on drugs
+    if (!m[0].toLowerCase().startsWith("stoned")) return false;
+    const nxt = nextWord(text, m), prev = before(text, m, 2);
+    if (nxt && STONED_NEXT.has(nxt)) return true;
+    return prev.length === 2 && prev[1] === "be" && STONED_BEFORE2.has(prev[0]);
+  }
+  function percocetMedical(text, m) {    // Percocet / OxyContin with no sign of misuse near it
+    const f = m[0].toLowerCase();
+    if (!(f.startsWith("percocet") || f.startsWith("perkaset") || f.startsWith("oxycontin"))) return false;
+    return !nearBy(text, m, PERCOCET_REACH).some(w => PERCOCET_MISUSE.has(w));
+  }
+  function drugSlangInnocent(text, m) {  // an adrenaline junkie, the Hindu Kush, got high marks...
+    const f = m[0].toLowerCase(), prev = before(text, m, 1)[0];
+    const rest = text.slice(m.index + m[0].length), nxt = nextWord(text, m, /^\s*[.!?;,]/);
+    if (f.startsWith("junkie")) return !!prev && JUNKIE_NOT.has(prev);
+    if (f === "kush") return prev === "hindu";
+    if (f.startsWith("shoot")) return !!nxt && !SHOOT_UP_OK_NEXT.has(nxt);
+    if (f.endsWith(" high")) return !!nxt && HIGH_NOT_NEXT.has(nxt);
+    if (f === "strung out") return !!nxt && STRUNG_NOT_NEXT.has(nxt);
+    if (f === "oxy" || f === "oxys") return rest.startsWith("-");
+    if (f.startsWith("jones")) return /^\s*for (?:you|me|him|her|them|us)\b/i.test(rest);
+    return false;
+  }
+  /** Is this short-list find innocent where it stands? (cleanview.Listed's innocent) */
+  function innocent(key, text, m) {
+    if (key === "sexref") return stripperTool(text, m) || wienerDog(text, m) || ballGame(text, m);
+    if (key === "crude") return drunkDrink(text, m);
+    if (key === "drugtalk") return stonedRocks(text, m) || percocetMedical(text, m) || drugSlangInnocent(text, m);
+    return false;
+  }
 
   function stripperTool(text, m) {
     const found = m[0].toLowerCase();
@@ -165,7 +229,7 @@
     // the short lists that need no AI: just their words are muted (cleanview.list_words_only)
     // (same-sex words since CleanView 1.18.127: bi-curious, twink, shemale, under that tick)
     for (const [key, tick] of [["sexref", "sexref"], ["casual", "casual"], ["crude", "crude"], ["samesex", "samesexwords"],
-                               ["forensic", "forensic"]]) {
+                               ["forensic", "forensic"], ["drugtalk", "drugtalk"]]) {
       if (!ticks[tick] || !LINE_WORDS[key]) continue;
       cues.forEach((c, ci) => {
         // with the next line joined on: a phrase can be split between two caption lines (YouTube's
@@ -174,10 +238,10 @@
         // count here; the next line finds its own.
         const own = c.words.map(x => x.raw).join(" ");
         const nxt = cues[ci + 1];
-        const plain = nxt && nxt.s - c.e < 3 ? own + " " + nxt.words.map(x => x.raw).join(" ") : own;
+        const plain = nxt && nxt.s - c.e <= JOIN_NEXT_SECS ? own + " " + nxt.words.map(x => x.raw).join(" ") : own;
         for (const m of plain.matchAll(LINE_WORDS[key])) {
           if (m.index >= own.length) continue;
-          if (key === "sexref" && stripperTool(plain, m)) continue;
+          if (innocent(key, plain, m)) continue;
           const phrase = m[0].replace(TRIM, "");
           let want = phrase.split(/[\s-]+/).map(CS.norm).filter(Boolean);
           const at = w => ws.findIndex((x, k) => x.ci === ci && w.every((y, j) => ws[k + j] && ws[k + j].w === y));
@@ -297,5 +361,9 @@
   /** Netflix subtitles of either kind. */
   const readSubtitles = text => (/^\s*WEBVTT/.test(text) ? readVTT(text) : readTTML(text));
 
-  globalThis.CSCaptions = { readJson3, readTTML, readVTT, readSubtitles, plan, ranges, findInTrack, soundsAlike, LABEL };
+  /** The short-list finds in a text, guards applied (for tools/check_lines.py). */
+  const lineFinds = (key, text) => LINE_WORDS[key] ? [...text.matchAll(LINE_WORDS[key])]
+    .filter(m => !innocent(key, text, m)).map(m => m[0]) : [];
+  globalThis.CSCaptions = { readJson3, readTTML, readVTT, readSubtitles, plan, ranges, findInTrack, soundsAlike, LABEL,
+    lineFinds };
 })();
