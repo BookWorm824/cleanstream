@@ -57,6 +57,33 @@ const youtubePage = `<!doctype html>${LOG}<body><div id="movie_player"><video id
 <script>setTimeout(() => window.postMessage({ cleanstream: "page", type: "captions-done", video: "TEST", written: null,
   auto: JSON.stringify({ events: [{ tStartMs: 8000, dDurationMs: 2000, segs: [{ utf8: "well" }, { utf8: " damn", tOffsetMs: 500 }, { utf8: " it", tOffsetMs: 1000 }] }] }) }, "*"), 3000);</script>`;
 
+// ---- Hulu and the others: WebVTT pieces as the video plays; the player shows each line inside a
+// closed shadow root, and notes any drawn frame in which a listed word could be read
+const vttOf = cues => "WEBVTT\n\n" + cues.map(([a, b, t], k) => `${k + 1}\n00:00:${a} --> 00:00:${b}\n${t}\n`).join("\n");
+const piece1 = vttOf([["06.000", "09.500", "It was a damn cold winter,"]]);
+const piece2 = vttOf([["10.000", "13.500", "What the hell are we going to do?"]]);
+const shownPage = `<!doctype html><body><x-player></x-player><script>
+window.log = []; window.readable = []; window.pills = [];
+const root = document.querySelector("x-player").attachShadow({ mode: "closed" });
+root.innerHTML = '<div style="position:relative;width:320px"><video id="ot" src="/v.mp4" autoplay style="width:320px"></video><div class="cues" style="position:absolute;bottom:16px;left:0;right:0;text-align:center"></div></div>';
+const v = root.querySelector("video"), box = root.querySelector(".cues");
+v.addEventListener("volumechange", () => log.push(["ot", +v.currentTime.toFixed(2), v.muted]));
+const CUES = [[6, 9.5, "It was a damn cold winter,"], [10, 13.5, "What the hell are we going to do?"]];
+let cur = -1;
+function draw() {
+  const el = box.firstElementChild;           // the frame just drawn
+  if (el && /damn|hell/.test(el.textContent) && getComputedStyle(el).opacity !== "0" && getComputedStyle(box).opacity !== "0") readable.push(+v.currentTime.toFixed(2));
+  const k = CUES.findIndex(c => v.currentTime >= c[0] && v.currentTime < c[1]);
+  if (k !== cur) { cur = k; box.innerHTML = k < 0 ? "" : '<div class="cue"><span></span></div>'; if (k >= 0) box.querySelector("span").textContent = CUES[k][2]; }
+  const pill = document.getElementById("cleanstream-status") || root.getElementById("cleanstream-status");
+  if (pill && pills[pills.length - 1] !== pill.textContent) pills.push(pill.textContent);
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+setTimeout(() => fetch("/subs/1.vtt").then(r => r.text()), 1500);
+setTimeout(() => fetch("/subs/2.vtt").then(r => r.text()), 7000);
+</script>`;
+
 const serve = (host, page, extra = () => null) => new Promise(res => {
   const srv = http.createServer((q, r) => {
     if (q.url.startsWith("/v.mp4")) { r.writeHead(200, { "content-type": "video/mp4" }); return r.end(vid); }
@@ -101,6 +128,18 @@ try {
   console.log("YouTube:", status, JSON.stringify(log));
   // the sound is off from the first moment until the captions are in, then off for "damn" only
   if (!/1 word/.test(status || "") || !log.length || log[0][2] !== true || !near(log, "yt", 8.1, 8.9)) problems.push("YouTube muting");
+
+  // Hulu and the others: subtitles read in pieces, shown by the player inside a closed-off part of
+  // the page (as Disney+): hidden on screen, the words muted (0.4.21)
+  s = await serve("127.0.0.5", shownPage, u => u.startsWith("/subs/1") ? ["text/vtt", piece1]
+    : u.startsWith("/subs/2") ? ["text/vtt", piece2] : null);
+  servers.push(s);
+  p = await fx.open(`http://127.0.0.5:${s.address().port}/watch/abc-123`, 21000);
+  log = await p.eval("log"); status = await p.eval("pills.join(' | ')");
+  const seen = await p.eval("readable");
+  console.log("Hulu (closed player):", status, JSON.stringify(log), "readable:", JSON.stringify(seen));
+  if (!/hiding the subtitles/.test(status || "") || seen.length || !near(log, "ot", 6.4, 8.2) || !near(log, "ot", 9.6, 11.8))
+    problems.push("Hulu hidden subtitles");
 
   const errs = fx.logs.filter(l => /^error/i.test(l) && /moz-extension|cleanstream/i.test(l));
   if (errs.length) { console.log("add-on errors:", errs.slice(0, 8)); problems.push("add-on errors"); }

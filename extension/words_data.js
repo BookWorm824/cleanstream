@@ -1,7 +1,7 @@
 // Made by tools/sync_words.py from CleanView's word lists. Don't edit by hand:
 // change the words in CleanView, then run the tool again.
 globalThis.CV_WORDS = {
-"from": "CleanView 1.18.141",
+"from": "CleanView 1.18.143",
 "STRONG": [
 ".*fuck.*",
 "cunts?",
@@ -2996,6 +2996,7 @@ globalThis.CV_WORDS = {
 "beer",
 "bottle",
 "bottles",
+"bowl",
 "brandy",
 "broth",
 "champagne",
@@ -3005,6 +3006,7 @@ globalThis.CV_WORDS = {
 "coffee",
 "cup",
 "cups",
+"dose",
 "draft",
 "draught",
 "gin",
@@ -3017,7 +3019,9 @@ globalThis.CV_WORDS = {
 "lemonade",
 "liquor",
 "mead",
+"medicine",
 "milk",
+"mug",
 "nectar",
 "port",
 "posset",
@@ -3046,9 +3050,7 @@ globalThis.CV_WORDS = {
 "were"
 ],
 "DRUNK_SOMEONE": [
-"and",
 "boy",
-"but",
 "drank",
 "drink",
 "drinking",
@@ -3058,19 +3060,20 @@ globalThis.CV_WORDS = {
 "girl",
 "guy",
 "he",
-"her",
-"his",
 "i",
-"it",
 "man",
-"my",
 "she",
-"their",
+"somebody",
+"someone",
 "they",
 "we",
 "who",
 "woman",
 "you"
+],
+"DRUNK_WHOSE": [
+"of",
+"to"
 ],
 "DRUNK_BY_NOT": [
 "dinner",

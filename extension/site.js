@@ -143,6 +143,7 @@
     clearTimeout(holdTimer); clearTimeout(pillTimer);
     if (st.weMuted) { const v = videoEl(); if (v) v.muted = false; st.weMuted = false; }
     st.holding = false; st.ranges = [];
+    watcher.disconnect(); unhide(); cueStyle(false);
     if (pill) pill.remove();
   }
   document.addEventListener("cleanstream-stop", () => { if (!alive()) stop(); });
@@ -165,10 +166,14 @@
     clearTimeout(replanTimer);
     replanTimer = setTimeout(replan, first ? 0 : 300);
     if (first) say("CleanStream is reading this title's subtitles as they come, and muting from them.", 6);
+    if (first) setTimeout(shownCheck, 0);
   }
   function replan() {
     if (!st.tracks || !st.settings) return;
     st.ticks = S.ticksFor(st.settings);
+    // for starring the words in subtitles shown on screen
+    st.cats = CS.catsFor(st.ticks);
+    st.mine = (st.settings.mine || "").split("\n").map(l => l.split(/[\s-]+/).map(CS.norm).filter(Boolean)).filter(l => l.length);
     st.lastCue = Math.max(0, ...(st.tracks.written || []).map(c => c.e || 0));
     st.plan = CC.plan(st.tracks, st.ticks, st.settings.mine);
     st.ranges = st.settings.on ? CC.ranges(st.plan.mutes) : [];
@@ -202,14 +207,227 @@
     st.captions = "ok";
     whole = true;
     replan();
+    shownCheck();                     // the whole file: subtitles the viewer turned on stay, starred
     const n = st.plan.mutes.length;
     say(n ? `CleanStream: ${n} ${n === 1 ? "word or phrase" : "words or phrases"} will be muted.`
       : "CleanStream: nothing to mute in this title's subtitles.");
   }
 
+  // ---------- subtitles the player shows on screen (Hulu, Disney+, Max, Peacock, Paramount+) ----------
+  // On these sites the subtitles often only reach CleanStream when they're turned on in the
+  // player, and then they're on screen with the words in them (the sound is muted, the word is
+  // there to read). The owner, 2026-11-19: "if the subtitles can be hidden from the screen but
+  // still read by cleanstream do that, but if not star them out". So:
+  //  - read in pieces (they had to be turned on for CleanStream): what the player shows is hidden;
+  //  - the whole file came by itself (the viewer turned them on to read them): they stay;
+  //  - either way the listed words in them are starred (d***), as on YouTube.
+  // The player's subtitle boxes are found by their text, with no site's own names needed: an
+  // element over the video whose text is a subtitle line CleanStream has read. The names known
+  // for Disney+ and Max are used too (SITE.shownSel).
+  const SHOWN = !!SITE.shown, KNOWN = SITE.shownSel || "";
+  const hiding = () => SHOWN && !dead && !!st.settings && st.settings.on && st.captions === "ok" && !whole;
+  const starring = () => SHOWN && !dead && !!st.settings && st.settings.on && st.captions === "ok";
+  // a line's letters and digits only: the player's spacing, line breaks and marks don't matter
+  const keyOf = s => (s || "").toLowerCase().replace(/&#?\w+;/g, "").replace(/[^a-z0-9]/g, "");
+  let keysFor = null, cueKeys = [], allKeys = "", absent = new Set();
+  function readKeys() {
+    const cues = (st.tracks && st.tracks.written) || [];
+    if (keysFor === cues) return;
+    keysFor = cues;
+    absent = new Set();                // texts on the page that are no subtitle line (most of them)
+    cueKeys = cues.map(c => ({ k: keyOf(c.text), s: c.s, e: c.e || c.s })).filter(c => c.k.length > 1);
+    allKeys = cueKeys.map(c => c.k).join("\n");
+  }
+  /** True if these letters are a subtitle line, or a good part of one (a line shown on two
+   *  rows is two elements). Short ones only count near their moment, and a short part of a line
+   *  only when it was just put up (fresh): a title on screen can be a few words of a line. */
+  function isLine(k, now, fresh) {
+    if (k.length < 2 || k.length > 400) return false;
+    readKeys();
+    if (absent.has(k)) return false;
+    if (!allKeys.includes(k)) { if (absent.size < 20000) absent.add(k); return false; }
+    for (const c of cueKeys) {
+      const part = c.k !== k;
+      if (part && !(k.length >= 6 && c.k.includes(k) && (fresh || k.length >= 12))) continue;
+      if (k.length >= 12 || (now >= c.s - 4 && now <= c.e + 4)) return true;
+    }
+    return false;
+  }
+  const NOT_SUBS = "button,a,input,select,textarea,[role=button],[role=menu],[role=menuitem],[role=dialog],#cleanstream-status";
+  const marked = new Set();          // the boxes the player shows its subtitles in
+  const hidden = new Set();          // those hidden now
+  const looks = new Map();           // what a subtitle element looks like (tag and class) -> times seen
+  const lookOf = el => (typeof el.className === "string" && el.className.trim() ? el.tagName + "|" + el.className.trim() : "");
+  const learned = el => (looks.get(lookOf(el)) || 0) >= 3;     // seen with three lines: the next needs no match
+  let videoBox = null;
+  function overVideo(el) {
+    const a = el.getBoundingClientRect(), b = videoBox;
+    if (!a.width || !a.height) return true;        // not drawn (a copy for screen readers): no harm
+    return !!b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  }
+  /** A text with its listed words starred. Tags (<i>) are left as they are. */
+  function starred(text) {
+    const parts = text.split(/(<[^>]*>|\s+)/), idx = [], words = [];
+    parts.forEach((p, k) => {
+      if (!p || /^(<[^>]*>|\s+)$/.test(p)) return;
+      const w = CS.norm(p);
+      if (w) { idx.push(k); words.push(w); }
+    });
+    if (!words.length || !st.cats) return text;
+    // only the letters are starred: a quote mark or comma next to the word stays
+    const star = p => p.replace(/[A-Za-z](?:[A-Za-z'’]*[A-Za-z])?/, m => m[0] + "*".repeat(m.length - 1));
+    for (const [a, b] of CS.findLanguage(words, st.cats, st.mine || [])) for (let k = a; k < b; k++) parts[idx[k]] = star(parts[idx[k]]);
+    return parts.join("");
+  }
+  function treat(box) {
+    const w = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      if (!/[a-z]{2}/i.test(n.nodeValue)) continue;
+      const out = starred(n.nodeValue);
+      if (out !== n.nodeValue) n.nodeValue = out;
+    }
+    if (!hiding()) return;
+    if (!hidden.has(box) || box.style.getPropertyValue("opacity") !== "0") {
+      box.style.setProperty("opacity", "0", "important");
+      if (!st.toldHidden) {
+        st.toldHidden = true;
+        say("CleanStream is hiding the subtitles on screen. It still reads them to mute bad language.", 6);
+      }
+      hidden.add(box);
+    }
+  }
+  function unhide() {
+    for (const el of hidden) el.style.removeProperty("opacity");
+    hidden.clear();
+  }
+  /** The whole box a subtitle element sits in: up while the parent holds subtitles only. */
+  function boxOf(el, now) {
+    let c = el;
+    for (let k = 0; k < 5 && !marked.has(c); k++) {
+      const p = c.parentElement;
+      if (!p || p === document.body || p === document.documentElement) break;
+      if (p.querySelector("video,canvas,button,input,a,img,svg")) break;
+      if (keyOf(p.textContent) !== keyOf(c.textContent)) {
+        const ownText = [...p.childNodes].some(n => n.nodeType === 3 && n.nodeValue.trim());
+        const others = [...p.children].filter(ch => ch !== c && keyOf(ch.textContent));
+        if (ownText || !others.every(ch => marked.has(ch) || learned(ch) || isLine(keyOf(ch.textContent), now, true))) break;
+      }
+      c = p;
+    }
+    return c;
+  }
+  function mark(el, now) {
+    const box = boxOf(el, now);
+    for (const m of [...marked]) {
+      if (m === box || !box.contains(m)) continue;
+      marked.delete(m);
+      if (hidden.delete(m)) m.style.removeProperty("opacity");
+    }
+    marked.add(box);
+    treat(box);
+  }
+  /** Is this element (or, a few levels down, something in it) the player's subtitles? */
+  function look(el, now, depth, fresh) {
+    if (!el || el.nodeType !== 1 || el === pill || /^(SCRIPT|STYLE|VIDEO|TITLE|HEAD|HTML|BODY)$/.test(el.tagName)) return;
+    for (const m of marked) if (m.contains(el)) return treat(m);
+    if (KNOWN) {
+      const k = el.closest(KNOWN);
+      if (k) return mark(k, now);
+      if (depth < 4) for (const x of el.querySelectorAll(KNOWN)) mark(x, now);
+    }
+    const text = el.textContent || "";
+    if (!text.trim()) return;
+    if (text.length <= 400 && !el.closest(NOT_SUBS)) {
+      const line = isLine(keyOf(text), now, fresh);
+      if ((line || learned(el)) && overVideo(el)) {
+        const l = lookOf(el);
+        if (line && l) looks.set(l, (looks.get(l) || 0) + 1);
+        return mark(el, now);
+      }
+    }
+    if (depth < 4 && text.length <= 3000 && el.childElementCount <= 40) for (const c of el.children) look(c, now, depth + 1, fresh);
+  }
+  const clockNow = () => { const v = videoEl(); videoBox = v ? v.getBoundingClientRect() : null; return v ? titleTime(v).t : 0; };
+  // as the player puts a line up (before it's drawn)
+  const watcher = new MutationObserver(recs => {
+    if (!starring()) return;
+    const now = clockNow(), self = new Set(), added = new Set();
+    for (const r of recs) {
+      if (r.type === "characterData") self.add(r.target.parentElement);
+      else if (r.addedNodes.length) {
+        self.add(r.target);
+        for (const n of r.addedNodes) if (n.nodeType === 1) added.add(n);
+      }
+    }
+    for (const el of added) look(el, now, 0, true);
+    for (const el of self) if (!added.has(el)) look(el, now, 9, true);
+  });
+  const watched = new Set();
+  // subtitles drawn by the browser itself (a text track): hidden with a style, their words starred
+  const CUE_CSS = "video::cue{color:transparent!important;background:transparent!important;" +
+    "text-shadow:none!important;opacity:0!important;visibility:hidden!important}";
+  const cueStyles = new Map(), cuesDone = new WeakSet();
+  function cueStyle(on, roots) {
+    for (const r of on ? roots : [...cueStyles.keys()]) {
+      const s = cueStyles.get(r);
+      if (on && !(s && s.isConnected)) {
+        try {
+          const el = document.createElement("style");
+          el.textContent = CUE_CSS;
+          (r === document ? (document.head || document.documentElement) : r).appendChild(el);
+          cueStyles.set(r, el);
+        } catch (e) { /* not allowed here: the words are starred all the same */ }
+      } else if (!on && s) { s.remove(); cueStyles.delete(r); }
+    }
+  }
+  function trackCues() {
+    const v = videoEl();
+    if (!v || !v.textTracks) return;
+    for (const t of v.textTracks) {
+      if (t.mode !== "showing" || !t.cues) continue;
+      for (const c of t.cues) {
+        if (cuesDone.has(c) || typeof c.text !== "string") continue;
+        cuesDone.add(c);
+        const out = starred(c.text);
+        if (out !== c.text) try { c.text = out; } catch (e) { /* not one that can be changed */ }
+      }
+    }
+  }
+  /** Once a second (and when subtitles arrive): anything the watcher didn't see put up. */
+  function shownCheck() {
+    if (dead || !SHOWN) return;
+    const roots = SITE.roots ? SITE.roots() : [document];
+    const hid = hiding();
+    if (!hid && hidden.size) unhide();
+    cueStyle(hid, roots);
+    if (!starring()) return;
+    for (const r of roots) {
+      if (watched.has(r)) continue;
+      watched.add(r);
+      watcher.observe(r, { childList: true, subtree: true, characterData: true });
+    }
+    const now = clockNow();
+    for (const m of [...marked]) { if (!m.isConnected) { marked.delete(m); hidden.delete(m); } else treat(m); }
+    for (const r of roots) {
+      const from = r === document ? document.body : r;
+      if (!from) continue;
+      const w = document.createTreeWalker(from, NodeFilter.SHOW_TEXT);
+      let count = 0;
+      for (let n = w.nextNode(); n && count < 5000; n = w.nextNode(), count++) {
+        const t = n.nodeValue;
+        if (t.length < 2 || t.length > 400 || !/[a-z]/i.test(t) || !n.parentElement) continue;
+        look(n.parentElement, now, 9, false);
+      }
+    }
+    trackCues();
+    st.shown = { boxes: marked.size, hidden: hidden.size };
+  }
+  if (SHOWN) timers.push(setInterval(shownCheck, 1000));
+
   function startTitle(id) {
     st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting"; st.lastCue = 0;
     pieces = new Map(); whole = false;
+    unhide(); st.toldHidden = false;
     if (SITE.newTitle) SITE.newTitle();
     spanEl = null;                                   // a new title: its own ads
     unmute(); hold(false);
@@ -264,7 +482,7 @@
     if (area !== "sync" || dead) return;
     const was = st.settings && st.settings.on;
     st.settings = await S.load();
-    if (!st.settings.on) { st.ranges = []; hold(false); unmute(); return; }
+    if (!st.settings.on) { st.ranges = []; hold(false); unmute(); shownCheck(); return; }
     if (!was) { st.video = null; check(); return; }
     replan();
   });

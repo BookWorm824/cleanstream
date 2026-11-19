@@ -115,7 +115,7 @@ def build():
         "WIENER_DOG": sorted(engine.WIENER_DOG), "BALL_GAME": sorted(engine.BALL_GAME),
         "DRUNK_BEFORE": sorted(engine.DRUNK_BEFORE), "DRUNK_NEXT": sorted(engine.DRUNK_NEXT),
         # cleanview.drunk_old_use (1.18.140): "the toast was drunk", "drunk by the gods", "drunk with joy"
-        **{k: sorted(getattr(engine, k, ())) for k in ("DRUNK_THING", "DRUNK_BE", "DRUNK_SOMEONE",
+        **{k: sorted(getattr(engine, k, ())) for k in ("DRUNK_THING", "DRUNK_BE", "DRUNK_SOMEONE", "DRUNK_WHOSE",
                                                        "DRUNK_BY_NOT", "DRUNK_FEELING")},
         "STONED_NEXT": sorted(engine.STONED_NEXT), "STONED_BEFORE2": sorted(engine.STONED_BEFORE2),
         "PERCOCET_MISUSE": sorted(engine.PERCOCET_MISUSE), "PERCOCET_REACH": engine.PERCOCET_REACH,

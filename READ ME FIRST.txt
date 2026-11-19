@@ -54,4 +54,6 @@ Good to know
   English subtitles (without showing them on Netflix and Prime) and mutes a
   little wider than on YouTube, since they give a line at a time.
 - On Disney+, Max, Peacock and Paramount+ (and Hulu, if it says so), turn on
-  English subtitles (CC) in the player: CleanStream reads them as they come.
+  English subtitles (CC) in the player: CleanStream reads them as they come
+  and hides them on screen. If the subtitles still show, bad words in them
+  are shown as d***.

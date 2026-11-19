@@ -134,7 +134,7 @@
     PERCOCET_MISUSE = setOf("PERCOCET_MISUSE"), JUNKIE_NOT = setOf("JUNKIE_NOT"), HIGH_NOT_NEXT = setOf("HIGH_NOT_NEXT"),
     SHOOT_UP_OK_NEXT = setOf("SHOOT_UP_OK_NEXT"), STRUNG_NOT_NEXT = setOf("STRUNG_NOT_NEXT"),
     SHOOT_UP_THINGS = setOf("SHOOT_UP_THINGS"), DRUNK_THING = setOf("DRUNK_THING"), DRUNK_BE = setOf("DRUNK_BE"),
-    DRUNK_SOMEONE = setOf("DRUNK_SOMEONE"), DRUNK_BY_NOT = setOf("DRUNK_BY_NOT"), DRUNK_FEELING = setOf("DRUNK_FEELING");
+    DRUNK_SOMEONE = setOf("DRUNK_SOMEONE"), DRUNK_WHOSE = setOf("DRUNK_WHOSE"), DRUNK_BY_NOT = setOf("DRUNK_BY_NOT"), DRUNK_FEELING = setOf("DRUNK_FEELING");
   const PERCOCET_REACH = W.PERCOCET_REACH || 10, JOIN_NEXT_SECS = W.JOIN_NEXT_SECS || 2;
   const wordsOf = t => t.toLowerCase().match(/[a-z']+/g) || [];
   const before = (text, m, n) => wordsOf(text.slice(0, m.index)).slice(-n);
@@ -156,13 +156,21 @@
   // a drink that "was drunk", "drunk by the gods", "thou hast drunk", "drunk with joy"
   // (cleanview.drunk_old_use, CleanView 1.18.140)
   function drunkOldUse(text, m, prev) {
-    if (["thou'st", "hast", "hath"].includes(prev)) return true;
+    if (["thou'st", "thou'dst", "hast", "hath"].includes(prev)) return true;
     const sentence = text.slice(0, m.index).split(/[.!?;,]/).pop();
     const near = wordsOf(sentence).slice(-7);
     for (let k = near.length - 1; k > Math.max(-1, near.length - 3); k--) {     // "was (always) drunk"
       if (DRUNK_BE.has(near[k])) {
         const subject = near.slice(Math.max(0, k - 5), k);
-        if (subject.some(w => DRUNK_THING.has(w)) && !subject.some(w => DRUNK_SOMEONE.has(w))) return true;
+        // only nothing, or whose it was ("of the Earl", "to the bride"), between the drink and
+        // "was drunk" (CleanView 1.18.142): not "the wine was gone but Tom was drunk"
+        let last = -1;
+        subject.forEach((w, n) => { if (DRUNK_THING.has(w)) last = n; });
+        if (last >= 0 && !subject.some(w => DRUNK_SOMEONE.has(w))) {
+          const between = subject.slice(last + 1);
+          // "the wine that was drunk at the wedding" (CleanView 1.18.143)
+          if (!between.length || (between.length === 1 && between[0] === "that") || DRUNK_WHOSE.has(between[0])) return true;
+        }
         break;
       }
     }
