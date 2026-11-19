@@ -98,8 +98,10 @@
     if (d.video !== st.video) return;
     // asked while an ad was starting, or the player wasn't ready: ask once more before giving up
     // (the owner, 2026-11-18: after an ad it didn't find the captions; F5 found 170 things)
-    if ((d.error || (!d.none && !d.written && !d.auto)) && !st.askedAgain && st.askAgain) {
-      st.askedAgain = true;
+    // (the player not on this video yet: up to 3 more times, each waiting up to 10 s)
+    const notYet = d.error === "other video" || d.error === "no player";
+    if ((d.error || (!d.none && !d.written && !d.auto)) && st.askAgain && (st.askedAgain || 0) < (notYet ? 3 : 1)) {
+      st.askedAgain = (st.askedAgain || 0) + 1;
       st.askAgain();
       return;
     }
@@ -146,7 +148,7 @@
     // the player must have this video loaded before its captions can be asked for, and not be
     // playing an ad: asked during an ad, the answer was the ad's (no captions)
     let tries = 0, adFirst = false;
-    st.askedAgain = false;
+    st.askedAgain = 0;
     const ask = () => {
       if (st.video !== id) return;
       if (adShowing()) {

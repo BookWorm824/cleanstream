@@ -137,8 +137,13 @@
   async function getCaptions(video) {
     const p = player();
     if (!p || !p.getOption || !p.setOption) return said("captions-done", { video, error: "no player" });
-    const tracks = englishTracks(p);
-    if (tracks.video && tracks.video !== video) return said("captions-done", { video, error: "other video" });
+    // moving to a video without the page reloading (from the home page, the list beside a video,
+    // the YouTube app window), the player can still have the last video's details for a moment:
+    // wait up to 10 s for this one's (the owner, 2026-11-19: "after refreshing it seems to work
+    // better"; it worked "about half the time" in the app)
+    let tracks = englishTracks(p);
+    for (let k = 0; k < 40 && tracks.video !== video; k++) { await wait(250); tracks = englishTracks(p); }
+    if (tracks.video !== video) return said("captions-done", { video, error: "other video" });
     if (!tracks.written && !tracks.auto)
       return said("captions-done", { video, none: true, others: tracks.others });
     const before = p.getOption("captions", "track") || {};
