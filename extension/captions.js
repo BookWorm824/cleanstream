@@ -166,8 +166,15 @@
     for (const [key, tick] of [["sexref", "sexref"], ["casual", "casual"], ["crude", "crude"], ["samesex", "samesexwords"]]) {
       if (!ticks[tick] || !LINE_WORDS[key]) continue;
       cues.forEach((c, ci) => {
-        const plain = c.words.map(x => x.raw).join(" ");
+        // with the next line joined on: a phrase can be split between two caption lines (YouTube's
+        // auto captions often break mid-phrase; the owner, 2026-11-18: "why isnt clean stream
+        // finding it", a sexual phrase CleanView caught). Only phrases that start in this line
+        // count here; the next line finds its own.
+        const own = c.words.map(x => x.raw).join(" ");
+        const nxt = cues[ci + 1];
+        const plain = nxt && nxt.s - c.e < 3 ? own + " " + nxt.words.map(x => x.raw).join(" ") : own;
         for (const m of plain.matchAll(LINE_WORDS[key])) {
+          if (m.index >= own.length) continue;
           if (key === "sexref" && stripperTool(plain, m)) continue;
           const phrase = m[0].replace(TRIM, "");
           let want = phrase.split(/[\s-]+/).map(CS.norm).filter(Boolean);
