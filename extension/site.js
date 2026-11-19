@@ -216,6 +216,9 @@
     const v = videoEl();
     reply({ video: st.video, title: document.title, captions: st.captions,
       status: st.status, source: st.plan && "subtitles", now: v ? titleTime(v).t : 0,
+      // where CleanStream thinks the title is, to compare with the site's own clock (Prime's ads
+      // can move the video's clock; the owner, 2026-11-19: listed words played)
+      clock: v ? titleTime(v).t : null, ad: v ? isAd(v) : false,
       mutes: st.plan ? st.plan.mutes.map(m => ({ s: m.s, text: CS.mask(m.text), why: m.why, guess: false })) : [],
       left: st.plan ? st.plan.left.map(m => ({ s: m.s, text: m.text, why: m.why })) : [],
       site: SITE.name });

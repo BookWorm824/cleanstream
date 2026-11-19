@@ -92,7 +92,7 @@
     const site = (SITES.find(([re]) => re.test(url)) || [])[1] || null;
     // only what changed is written (the owner, 2026-11-18: the window "kinda flickering" as
     // everything was cleared and filled in again every 2 seconds)
-    const only = (say, src = "") => { set("video-say", say); set("video-src", src); };
+    const only = (say, src = "") => { set("video-say", say); set("video-src", src); $("video-clock").hidden = true; };
     $("video-box").hidden = false;
     if (!site) {
       return only("Open a video on YouTube, Netflix, Prime Video, Hulu, Disney+, Max, Peacock or Paramount+ to use CleanStream.");
@@ -124,6 +124,12 @@
       subtitles: `Going by ${site}'s English subtitles (a line at a time, so each word's moment is ` +
         `guessed and muted a little wider).`,
     }[r.source] || "");
+    // CleanStream's own clock for the title, to compare with the site's (not YouTube: its clock
+    // is the video's own)
+    const showClock = site !== "YouTube" && r.clock != null && r.video;
+    $("video-clock").hidden = !showClock;
+    if (showClock) set("video-clock", r.ad ? `An ad is playing: CleanStream isn't muting it.`
+      : `CleanStream's clock: ${clock(r.clock)}. ${site}'s own clock should show the same time.`);
     const items = [
       ...r.mutes.map(m => ({ t: m.s, w: m.text, why: m.why + (m.guess ? " (timing guessed)" : ""), cls: "" })),
       ...r.left.map(m => ({ t: m.s, w: m.text, why: "left alone: " + m.why, cls: "left" })),

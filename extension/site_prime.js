@@ -13,7 +13,8 @@
 
   const seen = el => !!el && el.getClientRects().length > 0;
   // an "Ad" / "Ad 1 of 2" / "Ad · 0:15" label shown over the player (looked at 4 times a second)
-  const AD_TEXT = /^(?:ad|ads|advertisement)(?:\s*(?:\d+\s*of\s*\d+|[·•|:(\-]|\d+:\d\d)|$)/i;
+  // (not "Ad-free" or "Ad: learn more": 2026-11-19, the owner: listed words played on Prime)
+  const AD_TEXT = /^(?:ad|ads|advertisement)(?:\s*(?:\d+\s*of\s*\d+|[·•|(]\s*\d|\d+:\d\d)|$)/i;
   let adSeen = false, adLooked = 0;
   function adLabel() {
     const now = Date.now();
