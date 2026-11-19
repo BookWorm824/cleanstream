@@ -1,7 +1,7 @@
 // Made by tools/sync_words.py from CleanView's word lists. Don't edit by hand:
 // change the words in CleanView, then run the tool again.
 globalThis.CV_WORDS = {
-"from": "CleanView 1.18.137",
+"from": "CleanView 1.18.138",
 "STRONG": [
 ".*fuck.*",
 "cunts?",
@@ -2836,7 +2836,7 @@ globalThis.CV_WORDS = {
 "i"
 ],
 "crude": [
-"(?<![A-Za-z0-9_\\u00C0-\\u024F])(farts?|farted|farting|poop(ed|ing)?|butt crack|boogers?|peed (my|his|her|your) pants|drunk|drunks|drunken|drunkenly|drunkenness|drunkards?)(?![A-Za-z0-9_\\u00C0-\\u024F])",
+"(?<![A-Za-z0-9_\\u00C0-\\u024F])(farts?|farted|farting|poop(ed|ing)?|butt crack|boogers?(?! sugar)|peed (my|his|her|your) pants|drunk|drunks|drunken|drunkenly|drunkenness|drunkards?)(?![A-Za-z0-9_\\u00C0-\\u024F])",
 "i"
 ],
 "samesex": [
@@ -2848,7 +2848,7 @@ globalThis.CV_WORDS = {
 "i"
 ],
 "drugtalk": [
-"(?<![A-Za-z0-9_\\u00C0-\\u024F])(?:stoned|percocets?|perkasets?|roofie|roofies|roofied|roofy|reefers?|ganja|spliffs?|bong (?:hits?|rips?)|kush|stoners?|pot ?heads?|tok(?:e|es|ed|ing)|high as a kite|wake and bake|nose candy|crack ?heads?|coke ?heads?|freebas(?:e|ed|es|ing)|lines? of (?:coke|cocaine|blow)|junkies?|dope ?fiends?|oxys?|oxies|oxycontin|oxycotton|percs|hillbilly heroin|black tar heroin|sizzurp|purple drank|speedball(?:s|ing)?|shoot(?:s|ing)? up|track marks|crystal meth|meth ?heads?|tweakers?|(?:xanax|xan|z) ?-?bars|xannies|zannies|ludes|quaaludes?|ruffies|rohypnol|lsd|shrooms|magic mushrooms|angel dust|k-?holes?|trip(?:ping)? balls|(?:get|gets|getting|got|gotten) high|high on (?:drugs|coke|cocaine|crack|meth|heroin|pot|weed|pills|acid|ecstasy|percocet|oxy|smack|dope|something)|strung out|jones(?:ing|in'))(?![\\w'])",
+"(?<![A-Za-z0-9_\\u00C0-\\u024F])(?:stoned|percocets?|perkasets?|roofie|roofies|roofied|roofy|reefers?|ganja|spliffs?|bong (?:hits?|rips?)|kush|stoners?|pot ?heads?|tok(?:e|es|ed|ing)|high as a kite|wake and bake|nose candy|booger sugar|crack ?heads?|coke ?heads?|freebas(?:e|ed|es|ing)|lines? of (?:coke|cocaine|blow)|junkies?|dope ?fiends?|oxys?|oxies|oxycontin|oxycotton|percs|hillbilly heroin|black tar heroin|sizzurp|purple drank|speedball(?:s|ing)?|shoot(?:s|ing)? up|track marks|crystal meth|meth ?heads?|tweakers?|(?:xanax|xan|z) ?-?bars|xannies|zannies|ludes|quaaludes?|ruffies|rohypnol|lsd|shrooms|magic mushrooms|angel dust|k-?holes?|trip(?:ping)? balls|(?:get|gets|getting|got|gotten) high|high on (?:drugs|coke|cocaine|crack|meth|heroin|pot|weed|pills|acid|ecstasy|percocet|oxy|smack|dope|something)|strung out|jones(?:ing|in'))(?![\\w'])",
 "i"
 ]
 },
