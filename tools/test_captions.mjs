@@ -133,4 +133,38 @@ test("quick talk: a little word before ('a') goes with the word, a real word bef
   assert.ok(q.mutes[0].from > 0.25 - 0.1);                        // "some" is mostly heard
 });
 
+test("Spanish: a mostly English show with Spanish lines mutes bad words in both", () => {
+  const wr = CC.readJson3({ events: [
+    written(1000, 2000, "What the hell are you doing here?"),
+    written(4000, 2000, "¡Cállate, pendejo!"),
+    written(7000, 2500, "No sé qué demonios quieres de mí."),
+    written(10000, 1500, "Tonto."),                          // nothing to go by: the line before is Spanish
+    written(20000, 2000, "Tonto was the Lone Ranger's friend."),   // English: a name, left alone
+    written(23000, 2000, "Mira, Jody, the bus is here."),    // "Jody" isn't a Spanish swear
+  ] }, false);
+  const p = CC.plan({ written: wr }, kids);
+  const said = p.mutes.map(m => m.text);
+  assert.deepEqual(said, ["What the hell", "¡Cállate,", "pendejo!", "qué demonios", "Tonto."]);
+  assert.ok(p.mutes.find(m => m.text === "pendejo!").why.includes("Spanish") ||
+    p.mutes.find(m => m.text === "pendejo!").why === "Swearing");
+  const sw = CC.plan({ written: wr }, { ...kids, rude: false });
+  assert.ok(!sw.mutes.some(m => /Cállate|Tonto/.test(m.text)));       // rude words only when ticked
+});
+
+test("Spanish: a Spanish video's auto captions, with her own words", () => {
+  const auto = CC.readJson3({ events: [asr(0, ["mira", "que", "hijo", "de", "perra", "eres"]), asr(5000, ["qué", "rollo", "hermano"])] }, true);
+  const p = CC.plan({ auto }, kids, "qué rollo");
+  assert.deepEqual(p.mutes.map(m => m.text), ["hijo de perra", "qué rollo"]);
+  assert.ok(p.mutes[0].timed && Math.abs(p.mutes[0].s - 0.8) < 1e-6);
+});
+
+test("Spanish: words on screen starred in their own language", () => {
+  const cats = globalThis.CSWords.catsFor(kids);
+  const line = "¡Cállate, pendejo, qué mierda!";
+  const raws = line.split(/\s+/);
+  assert.deepEqual([...CC.starIdx(raws, line, cats, "")].sort(), [0, 1, 3]);
+  assert.deepEqual([...CC.starIdx("Tonto was here".split(" "), "Tonto was here", cats, "")], []);
+  assert.equal(globalThis.CSWords.mask("coño"), "c***");
+});
+
 console.log(`${passed} passed`);

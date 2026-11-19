@@ -90,8 +90,22 @@
     return v;
   };
   const TEXT_KINDS = ["webvtt-lssdh-ios8", "dfxp-ls-sdh", "simplesdh", "imsc1.1"];   // not the picture ones
-  const isEnglish = t => /^en\b/i.test(t.bcp47 || t.language || t.languageCode || "") ||
-    /^english\b/i.test(t.displayName || t.languageDescription || "");
+  // English, or Spanish (the owner, 2026-11-19: Spanish, "yes"): Spanish first when that's the
+  // language the title is playing in, else English first, Spanish when there's no English
+  const langOf = t => {
+    const code = String(t.bcp47 || t.language || t.languageCode || "").toLowerCase();
+    const name = String(t.displayName || t.languageDescription || "").toLowerCase();
+    if (/^en\b/.test(code) || /^english\b/.test(name)) return "en";
+    if (/^es\b/.test(code) || /^(spanish|español|espanol)\b/.test(name)) return "es";
+    return "";
+  };
+  function order(p) {
+    try {
+      const a = p && p.getAudioTrack && p.getAudioTrack();
+      if (a && langOf(a) === "es") return ["es", "en"];
+    } catch (e) { /* not known */ }
+    return ["en", "es"];
+  }
   const isCC = t => /ASSISTIVE|CLOSEDCAPTIONS|SDH/i.test(t.trackType || t.rawTrackType || "");
   function fileOf(track) {
     const d = track.ttDownloadables || {};
@@ -104,23 +118,28 @@
     }
     return null;
   }
-  /** From the title's manifest: {text} when the English file came, {none} when it lists no English. */
-  async function fromManifest(ids) {
+  /** From the title's manifest: {text} when the file came, {none} when it lists no English or
+   *  Spanish. */
+  async function fromManifest(ids, langs) {
     const tracks = ids.map(id => manifests.get(String(id))).find(Boolean);
     if (!tracks) return null;
     const real = tracks.filter(t => t && !t.isNoneTrack && !t.isForcedNarrative);
-    const english = real.filter(isEnglish), en = english.filter(fileOf);
-    // English listed without its file yet (Netflix fills that in when the track is chosen)
-    // isn't "none": the player is asked instead
-    if (!en.length) return real.length && !english.length ? { none: true, others: real.length } : null;
-    const pick = en.find(isCC) || en[0];
-    for (const url of fileOf(pick).slice(0, 3)) {
-      try {
-        const text = await F.call(window, url).then(r => r.ok ? r.arrayBuffer() : null).then(b => b && decode(b));
-        if (looksLikeSubs(text)) return { text };
-      } catch (e) { /* the next address */ }
+    for (const L of langs) {
+      const listed = real.filter(t => langOf(t) === L), en = listed.filter(fileOf);
+      // listed without its file yet (Netflix fills that in when the track is chosen) isn't
+      // "none": the player is asked instead
+      if (listed.length && !en.length) return null;
+      if (!en.length) continue;
+      const pick = en.find(isCC) || en[0];
+      for (const url of fileOf(pick).slice(0, 3)) {
+        try {
+          const text = await F.call(window, url).then(r => r.ok ? r.arrayBuffer() : null).then(b => b && decode(b));
+          if (looksLikeSubs(text)) return { text };
+        } catch (e) { /* the next address */ }
+      }
+      return null;
     }
-    return null;
+    return real.length ? { none: true, others: real.length } : null;
   }
 
   /** Through the player: choose the English track (hidden), and keep the file it downloads. */
@@ -154,11 +173,13 @@
       p = player(title);
       const ids = [title];
       try { if (p && p.getMovieId) ids.push(p.getMovieId()); } catch (e) { /* no id */ }
-      const m = await fromManifest(ids);
+      const langs = order(p);
+      const m = await fromManifest(ids, langs);
       if (m && m.text) return said("subs-done", { title, text: m.text });
       const list = (p && p.getTimedTextTrackList && p.getTimedTextTrackList()) || [];
       const real = list.filter(t => t && !t.isNoneTrack && !t.isForcedNarrative);
-      const en = real.filter(isEnglish);
+      const use = langs.find(L => real.some(t => langOf(t) === L));
+      const en = use ? real.filter(t => langOf(t) === use) : [];
       if (en.length) {
         const text = await fromPlayer(p, list, en, since);
         return said("subs-done", { title, text, error: text ? undefined : "no download" });

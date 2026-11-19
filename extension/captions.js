@@ -240,12 +240,26 @@
   }
 
   /** Words of one track to mute: [{s, e, words, cat, why, track}] and ones left alone. */
-  function findInTrack(cues, ticks, mine, kind) {
+  /** Each line's language ("en" or "es"): told by its own words, or, with nothing to go by
+   *  ("Pendejo."), the line just before or after it (within 3 s), else English. */
+  function linesLang(cues) {
+    const langs = cues.map(c => CS.lineLang(c.text));
+    for (let k = 1; k < cues.length; k++)
+      if (langs[k] === null && langs[k - 1] && cues[k].s - cues[k - 1].e < 3) langs[k] = langs[k - 1];
+    for (let k = cues.length - 2; k >= 0; k--)
+      if (langs[k] === null && langs[k + 1] && cues[k + 1].s - cues[k].e < 3) langs[k] = langs[k + 1];
+    return langs.map(l => l || "en");
+  }
+  /** Her own words and phrases, as one language's lists have them. */
+  const mineFor = (mineText, normFn) => (mineText || "").split("\n")
+    .map(l => l.split(/[\s-]+/).map(normFn).filter(Boolean)).filter(l => l.length);
+
+  function findInTrack(cues, ticks, mine, kind, mineEs = []) {
     const cats = CS.catsFor(ticks), ws = flat(cues), names = kind === "written" ? namesIn(cues) : new Set();
     const out = [], left = [];
     const words = ws.map(x => x.w);
     const keep = (a, b, cat, why) => {
-      const span = ws.slice(a, b).filter(x => x.w || x.hidden);
+      const span = ws.slice(a, b).filter(x => x.w || x.hidden || /\p{L}/u.test(x.raw));
       if (!span.length) return;
       // the word said just before (its start), so the early start of a mute can stop short of it
       const prior = ws.slice(0, a).filter(x => x.w || x.hidden).pop();
@@ -263,6 +277,20 @@
       }
       keep(a, b, cat);
     }
+    // Spanish lines: their words with the Spanish lists too (an English line's Spanish swears are
+    // on the English lists' short list)
+    const langs = linesLang(cues);
+    cues.forEach((c, ci) => {
+      if (langs[ci] !== "es") return;
+      const idx = [];
+      ws.forEach((x, k) => { if (x.ci === ci) idx.push(k); });
+      const esw = idx.map(k => (ws[k].hidden ? "" : CS.esNorm(ws[k].raw)));
+      for (const [a, b, cat] of CS.esFindLanguage(esw, cats, mineEs)) {
+        const A = idx[a], B = idx[b - 1] + 1;
+        if (out.some(o => o.cue === ci && o.s <= ws[A].s + 0.01 && o.e >= ws[B - 1].e - 0.01)) continue;
+        keep(A, B, cat, (LABEL[cat] || cat) + " (Spanish)");
+      }
+    });
     // a swear YouTube hid as "[ __ ]" (its auto captions do that for strong words)
     if (cats.includes("strong"))
       ws.forEach((x, k) => { if (x.hidden) keep(k, k + 1, "strong", "Swearing (YouTube hid it)"); });
@@ -311,10 +339,9 @@
   /** The whole plan for a video. tracks: {auto: cues|null, written: cues|null}.
    *  Returns {mutes: [{s, e, text, why}], left: [...], source}. */
   function plan(tracks, ticks, mineText = "") {
-    const mine = (mineText || "").split("\n").map(l => l.split(/[\s-]+/).map(CS.norm).filter(Boolean))
-      .filter(l => l.length);
-    const auto = tracks.auto && tracks.auto.length ? findInTrack(tracks.auto, ticks, mine, "auto") : null;
-    const written = tracks.written && tracks.written.length ? findInTrack(tracks.written, ticks, mine, "written") : null;
+    const mine = mineFor(mineText, CS.norm), mineEs = mineFor(mineText, CS.esNorm);
+    const auto = tracks.auto && tracks.auto.length ? findInTrack(tracks.auto, ticks, mine, "auto", mineEs) : null;
+    const written = tracks.written && tracks.written.length ? findInTrack(tracks.written, ticks, mine, "written", mineEs) : null;
     let mutes = [], left = [];
     if (auto) {
       for (const m of auto.mutes) {
@@ -430,6 +457,19 @@
   /** The short-list finds in a text, guards applied (for tools/check_lines.py). */
   const lineFinds = (key, text) => LINE_WORDS[key] ? [...text.matchAll(LINE_WORDS[key])]
     .filter(m => !innocent(key, text, m)).map(m => m[0]) : [];
-  globalThis.CSCaptions = { readJson3, readTTML, readVTT, readSubtitles, plan, ranges, findInTrack, soundsAlike, LABEL,
+  /** Which of a shown line's words to star (YouTube's captions on screen, the other sites'
+   *  subtitles): the indexes in raws, its words as shown. English lists, and the Spanish ones
+   *  when the line is Spanish. */
+  let mineMemo = null;
+  function starIdx(raws, lineText, cats, mineText) {
+    if (!mineMemo || mineMemo.text !== (mineText || ""))
+      mineMemo = { text: mineText || "", en: mineFor(mineText, CS.norm), es: mineFor(mineText, CS.esNorm) };
+    const out = new Set();
+    for (const [a, b] of CS.findLanguage(raws.map(CS.norm), cats, mineMemo.en)) for (let k = a; k < b; k++) out.add(k);
+    if (CS.lineLang(lineText) === "es")
+      for (const [a, b] of CS.esFindLanguage(raws.map(CS.esNorm), cats, mineMemo.es)) for (let k = a; k < b; k++) out.add(k);
+    return out;
+  }
+  globalThis.CSCaptions = { starIdx, linesLang, readJson3, readTTML, readVTT, readSubtitles, plan, ranges, findInTrack, soundsAlike, LABEL,
     lineFinds };
 })();

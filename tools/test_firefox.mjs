@@ -52,6 +52,23 @@ const netflixPage = `<!doctype html>${LOG}<script>
   window.netflix = { appContext: { state: { playerApp: { getAPI: () => ({ videoPlayer: { getAllPlayerSessionIds: () => ["s1"], getVideoPlayerBySessionId: () => p } }) } } } };
 </script><body><div class="watch-video"><video id="nf" src="/v.mp4" autoplay></video></div>`;
 
+// ---- Spanish (0.4.22): a Netflix title playing in Spanish (Spanish subtitles chosen over the
+// English ones), and a Prime title with only Spanish subtitles
+const ttmlEs = `<?xml version="1.0" encoding="utf-8"?><tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttp="http://www.w3.org/ns/ttml#parameter" ttp:tickRate="10000000"><body><div>
+<p begin="60000000t" end="95000000t">¡Cállate, pendejo!<br/>Ya te lo dije.</p>
+<p begin="100000000t" end="135000000t">No sé qué demonios<br/>quieres de mí.</p></div></body></tt>`;
+const netflixEsPage = `<!doctype html>${LOG}<script>
+  const tracks = [{ trackId: "none", isNoneTrack: true }, { trackId: "en-cc", bcp47: "en", trackType: "ASSISTIVE" },
+    { trackId: "es-cc", bcp47: "es", trackType: "ASSISTIVE" }];
+  let current = tracks[0];
+  const p = { getTimedTextTrackList: () => tracks, getTimedTextTrack: () => current, getAudioTrack: () => ({ bcp47: "es" }),
+    setTimedTextTrack: t => { current = t; if (t.trackId !== "none") { const x = new XMLHttpRequest(); x.open("GET", "/subs/" + t.trackId); x.responseType = "arraybuffer"; x.send(); } return Promise.resolve(); } };
+  window.netflix = { appContext: { state: { playerApp: { getAPI: () => ({ videoPlayer: { getAllPlayerSessionIds: () => ["s1"], getVideoPlayerBySessionId: () => p } }) } } } };
+</script><body><div class="watch-video"><video id="nf" src="/v.mp4" autoplay></video></div>`;
+const resourcesEs = JSON.stringify({ catalogMetadata: { catalog: { id: "B0TESTES" } }, timedTextUrls: { result: { subtitleUrls: [
+  { url: "/subs/es-sdh.dfxp", languageCode: "es-419", type: "sdh", format: "TTMLv2" },
+  { url: "/subs/fr.dfxp", languageCode: "fr-fr", type: "subtitle", format: "TTMLv2" }] } } });
+
 // ---- YouTube: the player box and its video; the captions are handed over as page.js would
 const youtubePage = `<!doctype html>${LOG}<body><div id="movie_player"><video id="yt" class="html5-main-video" src="/v.mp4" autoplay></video></div>
 <script>setTimeout(() => window.postMessage({ cleanstream: "page", type: "captions-done", video: "TEST", written: null,
@@ -128,6 +145,27 @@ try {
   console.log("YouTube:", status, JSON.stringify(log));
   // the sound is off from the first moment until the captions are in, then off for "damn" only
   if (!/1 word/.test(status || "") || !log.length || log[0][2] !== true || !near(log, "yt", 8.1, 8.9)) problems.push("YouTube muting");
+
+  // Spanish: Netflix playing in Spanish picks the Spanish subtitles; Prime with only Spanish ones
+  s = await serve("127.0.0.3", netflixEsPage, u => u.startsWith("/subs/es-cc") ? ["application/ttml+xml", ttmlEs]
+    : u.startsWith("/subs/") ? ["application/ttml+xml", ttml] : null);
+  servers.push(s);
+  p = await fx.open(`http://127.0.0.3:${s.address().port}/watch/81234568`, 15000);
+  log = await p.eval("log"); status = await p.eval(STATUS);
+  console.log("Netflix in Spanish:", status, JSON.stringify(log));
+  // muted from somewhere in [a, b] (a line's first word starts a little early) for at least 1 s
+  const inSpan = (lg, id, a, b) => lg.some(([v, t, m], k) => v === id && m && t >= a - 1 && t <= b &&
+    lg.slice(k + 1).some(([v2, t2, m2]) => v2 === id && !m2 && t2 - t >= 1));
+  // "¡Cállate," "pendejo!" (rude and swearing) and "qué demonios", not the English file's words
+  if (!/3 words/.test(status || "") || !inSpan(log, "nf", 5.8, 7.6) || !inSpan(log, "nf", 10, 12.5)) problems.push("Netflix Spanish");
+  s = await serve("127.0.0.2", primePage.replace("asin=B0TEST", "asin=B0TESTES"), u => u.startsWith("/cdp/") ? ["application/json", resourcesEs]
+    : u.startsWith("/subs/es") ? ["application/ttml+xml", ttmlEs.replace(/ttp:tickRate="10000000"/, "").replace("60000000t", "00:00:06.000").replace("95000000t", "00:00:09.500").replace("100000000t", "00:00:10.000").replace("135000000t", "00:00:13.500")]
+    : null);
+  servers.push(s);
+  p = await fx.open(`http://127.0.0.2:${s.address().port}/gp/video/detail/B0TESTES`, 20000);
+  log = await p.eval("log"); status = await p.eval(STATUS);
+  console.log("Prime in Spanish:", status, JSON.stringify(log));
+  if (!/3 words/.test(status || "") || !inSpan(log, "title", 5.8, 7.6) || !inSpan(log, "title", 10, 12.5)) problems.push("Prime Spanish");
 
   // Hulu and the others: subtitles read in pieces, shown by the player inside a closed-off part of
   // the page (as Disney+): hidden on screen, the words muted (0.4.21)

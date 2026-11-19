@@ -268,10 +268,11 @@
     for (const seg of document.querySelectorAll("#movie_player .ytp-caption-segment, #shorts-player .ytp-caption-segment")) {
       if (seg.dataset.csShown === seg.textContent) continue;
       const parts = seg.textContent.split(/(\s+)/);
-      const idx = [], words = [];
-      parts.forEach((p, k) => { if (p.trim()) { idx.push(k); words.push(CS.norm(p)); } });
-      const hits = CS.findLanguage(words, cats, []);
-      for (const [a, b] of hits) for (let k = a; k < b; k++) parts[idx[k]] = CS.mask(parts[idx[k]]);
+      const idx = [];
+      parts.forEach((p, k) => { if (p.trim()) idx.push(k); });
+      // English lists, and the Spanish ones on a Spanish line (CC.starIdx)
+      const raws = idx.map(k => parts[k]);
+      for (const n of CC.starIdx(raws, seg.textContent, cats, "")) parts[idx[n]] = CS.mask(parts[idx[n]]);
       const out = parts.join("");
       seg.textContent = out;
       seg.dataset.csShown = out;

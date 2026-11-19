@@ -171,9 +171,7 @@
   function replan() {
     if (!st.tracks || !st.settings) return;
     st.ticks = S.ticksFor(st.settings);
-    // for starring the words in subtitles shown on screen
-    st.cats = CS.catsFor(st.ticks);
-    st.mine = (st.settings.mine || "").split("\n").map(l => l.split(/[\s-]+/).map(CS.norm).filter(Boolean)).filter(l => l.length);
+    st.cats = CS.catsFor(st.ticks);             // for starring the words in subtitles shown on screen
     st.lastCue = Math.max(0, ...(st.tracks.written || []).map(c => c.e || 0));
     st.plan = CC.plan(st.tracks, st.ticks, st.settings.mine);
     st.ranges = st.settings.on ? CC.ranges(st.plan.mutes) : [];
@@ -267,16 +265,14 @@
   }
   /** A text with its listed words starred. Tags (<i>) are left as they are. */
   function starred(text) {
-    const parts = text.split(/(<[^>]*>|\s+)/), idx = [], words = [];
-    parts.forEach((p, k) => {
-      if (!p || /^(<[^>]*>|\s+)$/.test(p)) return;
-      const w = CS.norm(p);
-      if (w) { idx.push(k); words.push(w); }
-    });
-    if (!words.length || !st.cats) return text;
-    // only the letters are starred: a quote mark or comma next to the word stays
-    const star = p => p.replace(/[A-Za-z](?:[A-Za-z'’]*[A-Za-z])?/, m => m[0] + "*".repeat(m.length - 1));
-    for (const [a, b] of CS.findLanguage(words, st.cats, st.mine || [])) for (let k = a; k < b; k++) parts[idx[k]] = star(parts[idx[k]]);
+    const parts = text.split(/(<[^>]*>|\s+)/), idx = [];
+    parts.forEach((p, k) => { if (p && !/^(<[^>]*>|\s+)$/.test(p) && /[\p{L}\p{N}]/u.test(p)) idx.push(k); });
+    if (!idx.length || !st.cats) return text;
+    // only the letters are starred: a quote mark or comma next to the word stays (Spanish
+    // lines with the Spanish lists too: CC.starIdx)
+    const star = p => p.replace(/\p{L}(?:[\p{L}'’]*\p{L})?/u, m => [...m][0] + "*".repeat([...m].length - 1));
+    const raws = idx.map(k => parts[k]);
+    for (const n of CC.starIdx(raws, raws.join(" "), st.cats, st.settings && st.settings.mine)) parts[idx[n]] = star(parts[idx[n]]);
     return parts.join("");
   }
   function treat(box) {

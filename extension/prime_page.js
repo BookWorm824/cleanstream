@@ -56,7 +56,9 @@
     // subtitles yet: that isn't "no subtitles" (the owner, 2026-11-17: "at first ... it says ...
     // that it cant be muted but it does anyway")
     if (!files.length) return;
-    const en = files.filter(f => /^en\b/i.test(f.lang) && !f.forced);
+    // English, or Spanish when there's no English (the owner, 2026-11-19: Spanish, "yes")
+    let en = files.filter(f => /^en\b/i.test(f.lang) && !f.forced);
+    if (!en.length) en = files.filter(f => /^es\b/i.test(f.lang) && !f.forced);
     if (!en.length) return said("subs-done", { title, none: true, others: files.filter(f => !f.forced).length });
     const pick = en.find(f => /sdh|caption/i.test(f.type)) || en[0];
     let subs = null;

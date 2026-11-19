@@ -26,7 +26,10 @@
   const title = () => location.pathname;
   const looksLikeSubs = t => typeof t === "string" && (/^\s*(﻿)?WEBVTT/.test(t) || /<tt[\s>]/.test(t.slice(0, 3000)));
   const SUB_URL = /\.(vtt|webvtt|dfxp|ttml2?|xml)(\?|$)/i;
-  const isEnglish = l => /^en(\b|[-_])/i.test(l || "") || /^english/i.test(l || "");
+  // English, or Spanish (the owner, 2026-11-19: Spanish, "yes"): English files are tried first
+  const isEnglish = l => /^en(\b|[-_])/i.test(l || "") || /^english/i.test(l || "") ||
+    /^es(\b|[-_])/i.test(l || "") || /^(spanish|español|espanol)/i.test(l || "");
+  const spanish = l => /^es(\b|[-_])/i.test(l || "") || /^(spanish|español|espanol)/i.test(l || "");
 
   /** English subtitle file addresses in a JSON answer, best first (closed captions first). */
   function englishFiles(obj, out = [], depth = 0, under = "") {
@@ -38,14 +41,14 @@
     if (typeof url === "string" && typeof lang === "string" && isEnglish(lang) &&
         (SUB_URL.test(url) || /vtt|ttml|dfxp|subtitle|caption|sdh|cc/i.test(`${obj.format} ${obj.type} ${obj.kind} ${under}`)) &&
         !/forced|narrative/i.test(`${obj.type} ${obj.kind} ${obj.role}`))
-      out.push({ url, cc: /sdh|caption|\bcc\b/i.test(`${obj.type} ${obj.kind} ${obj.role} ${under}`) });
+      out.push({ url, es: spanish(lang), cc: /sdh|caption|\bcc\b/i.test(`${obj.type} ${obj.kind} ${obj.role} ${under}`) });
     for (const [k, v] of Object.entries(obj)) {
       // Hulu: "transcripts_urls": {"webvtt": {"en": "https://...vtt"}, "ttml": {...}}
       if (/transcript|caption|subtitle/i.test(k) && v && typeof v === "object" && !Array.isArray(v)) {
         for (const [fmt, langs] of Object.entries(v)) {
           if (langs && typeof langs === "object")
-            for (const [l, u] of Object.entries(langs)) if (typeof u === "string" && isEnglish(l)) out.push({ url: u, cc: /cc|sdh|caption/i.test(fmt + k) });
-          if (typeof langs === "string" && isEnglish(fmt)) out.push({ url: langs, cc: /cc|sdh|caption/i.test(k) });
+            for (const [l, u] of Object.entries(langs)) if (typeof u === "string" && isEnglish(l)) out.push({ url: u, es: spanish(l), cc: /cc|sdh|caption/i.test(fmt + k) });
+          if (typeof langs === "string" && isEnglish(fmt)) out.push({ url: langs, es: spanish(fmt), cc: /cc|sdh|caption/i.test(k) });
         }
       }
       englishFiles(v, out, depth + 1, /caption|subtitle|text/i.test(k) ? k : under);
@@ -59,7 +62,7 @@
     let json; try { json = JSON.parse(text); } catch (e) { return; }
     const files = englishFiles(json);
     if (!files.length) return;
-    files.sort((a, b) => (b.cc ? 1 : 0) - (a.cc ? 1 : 0) || (/\.vtt/i.test(a.url) ? -1 : 1));
+    files.sort((a, b) => (a.es ? 1 : 0) - (b.es ? 1 : 0) || (b.cc ? 1 : 0) - (a.cc ? 1 : 0) || (/\.vtt/i.test(a.url) ? -1 : 1));
     for (const f of files) {
       if (fetched.has(f.url)) return;
       fetched.add(f.url);

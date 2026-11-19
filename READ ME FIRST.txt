@@ -57,3 +57,7 @@ Good to know
   English subtitles (CC) in the player: CleanStream reads them as they come
   and hides them on screen. If the subtitles still show, bad words in them
   are shown as d***.
+- Spanish too: a show in Spanish is cleaned from its Spanish subtitles, and in
+  a mostly English show each line is checked in its own language, so bad
+  words in English and in Spanish are both muted. If the subtitles only say
+  "[speaking Spanish]", CleanStream can't know what was said.

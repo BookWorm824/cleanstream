@@ -324,8 +324,68 @@
   const alwaysRemoved = word => ALWAYS_REMOVED.some(p => p.test(base(norm(word))));
 
   function mask(word) {
-    const core = word.replace(/[^A-Za-z]/g, "");
+    const core = word.replace(/[^\p{L}]/gu, "");
     return core.length <= 1 ? word : core[0] + "*".repeat(core.length - 1);
+  }
+
+  // ---------- Spanish (cvlang.py: norm, find_language for "es") ----------
+  // The owner, 2026-11-19: "can clean stream doing any spanish?", then "yes", and "some shows
+  // are mostly english with some spanish in but bad words in both". Each subtitle line is
+  // checked in its own language (lineLang): a Spanish line with these lists, as well as the
+  // English ones (which already have a short list of Spanish swears for English films).
+  const ES = W.ES || { words: {}, phrases: {}, not_next: {}, not_before: {}, order: [] };
+  const ES_WORDS = Object.fromEntries(Object.entries(ES.words).map(([k, v]) => [k, full(v)]));
+  const ES_NOT_NEXT = setsOf(ES.not_next), ES_NOT_BEFORE = setsOf(ES.not_before);
+  /** A word as the Spanish lists have it: small letters, no punctuation, no accents (ñ kept). */
+  function esNorm(w) {
+    w = String(w).normalize("NFC").toLowerCase().replace(/[’‘]/g, "'").replace(/ñ/g, "\0")
+      .normalize("NFD").replace(/\p{M}/gu, "").replace(/\0/g, "ñ");
+    return stripP(w.replace(/[^\p{L}\p{N}']/gu, ""), "'");
+  }
+  const esInnocent = (words, i) => {
+    const w = words[i], nxt = i + 1 < words.length ? words[i + 1] : "", prev = i ? words[i - 1] : "";
+    return !!((ES_NOT_NEXT[w] && ES_NOT_NEXT[w].has(nxt)) || (ES_NOT_BEFORE[w] && ES_NOT_BEFORE[w].has(prev)));
+  };
+  /** Spans [i, j, category] of words[i:j] to mute (cvlang.find_language). words: esNorm()ed. */
+  function esFindLanguage(words, cats, mine = []) {
+    const has = new Set(cats), n = words.length, hits = [];
+    const phrases = ES.order.filter(c => has.has(c)).flatMap(c => (ES.phrases[c] || []).map(p => [p, c]))
+      .sort((a, b) => b[0].length - a[0].length);
+    const seen = new Set();
+    mine = byLen(mine.filter(p => { const k = p.join(" "); return !seen.has(k) && seen.add(k); }));
+    let i = 0;
+    while (i < n) {
+      const ph = mine.find(p => at(words, i, p));
+      if (ph) { hits.push([i, i + ph.length, "mine"]); i += ph.length; continue; }
+      const got = phrases.find(([p]) => at(words, i, p));
+      if (got) { hits.push([i, i + got[0].length, got[1]]); i += got[0].length; continue; }
+      const w = words[i];
+      const cat = ES.order.find(c => has.has(c) && (ES_WORDS[c] || []).some(p => p.test(w)));
+      if (cat && !esInnocent(words, i)) hits.push([i, i + 1, cat]);
+      i += 1;
+    }
+    return hits;
+  }
+
+  // Telling a line's language by its everyday words (cvlang.which_language's lists, en and es):
+  // a word only one of the two has counts for more. ¿ ¡ ñ say Spanish on their own; accents
+  // lean Spanish ("Cállate"). A line with nothing to go by says null.
+  const plainW = w => w.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z']/g, "");
+  const LW = W.LITTLE_WORDS || { en: [], es: [] };
+  const EN_LITTLE = new Set(LW.en.map(plainW)), ES_LITTLE = new Set(LW.es.map(plainW));
+  function lineLang(text) {
+    if (!ES.order.length) return "en";
+    if (/[¿¡ñÑ]/.test(text)) return "es";
+    let en = 0, es = 0;
+    for (const raw of text.split(/\s+/)) {
+      const t = plainW(raw);
+      if (!t) continue;
+      const inEn = EN_LITTLE.has(t), inEs = ES_LITTLE.has(t);
+      if (inEn) en += inEs ? 1 : 2;
+      if (inEs) es += inEn ? 1 : 2;
+      if (/[áéíóúÁÉÍÓÚ]/.test(raw)) es += 1;
+    }
+    return es > en ? "es" : en > es ? "en" : null;
   }
 
   // The tick boxes for words -> the word lists' categories (cvcore.GROUPS)
@@ -333,5 +393,5 @@
   const catsFor = ticks => Object.entries(GROUPS).filter(([g]) => ticks[g]).flatMap(([, c]) => c);
 
   globalThis.CSWords = { norm, findLanguage, listedWord, neverFine, alwaysRemoved, mask, GROUPS,
-    catsFor, unbleep, unabbreviate, base, from: W.from };
+    catsFor, unbleep, unabbreviate, base, from: W.from, esNorm, esFindLanguage, lineLang };
 })();

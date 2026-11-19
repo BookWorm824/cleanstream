@@ -82,16 +82,22 @@
     } catch (e) { /* storage blocked */ }
   }
 
-  /** The English caption tracks the video has: the written ones first, then auto-made. */
+  /** The caption tracks to read: the written ones first, then auto-made. English, or Spanish
+   *  when that's what is spoken (YouTube's auto-made captions are in the language said) or the
+   *  video has no English ones (the owner, 2026-11-19: Spanish, "yes"). */
   function englishTracks(p) {
     const pr = (p.getPlayerResponse && p.getPlayerResponse()) || window.ytInitialPlayerResponse || {};
     const all = (pr.captions && pr.captions.playerCaptionsTracklistRenderer &&
       pr.captions.playerCaptionsTracklistRenderer.captionTracks) || [];
-    const en = all.filter(t => /^en\b/i.test(t.languageCode || ""));
-    const written = en.filter(t => t.kind !== "asr");
-    const auto = en.filter(t => t.kind === "asr");
-    return { written: written[0] || null, auto: auto[0] || null, others: all.length - en.length,
-      video: pr.videoDetails && pr.videoDetails.videoId };
+    const lang = t => (/^(en|es)\b/i.exec(t.languageCode || "") || [""])[0].toLowerCase();
+    const spoken = all.filter(t => t.kind === "asr").map(lang)[0];
+    const order = spoken === "es" ? ["es", "en"] : ["en", "es"];
+    const use = order.find(l => all.some(t => lang(t) === l));
+    const mine = use ? all.filter(t => lang(t) === use) : [];
+    const written = mine.filter(t => t.kind !== "asr");
+    const auto = mine.filter(t => t.kind === "asr");
+    return { written: written[0] || null, auto: auto[0] || null, others: all.length - mine.length,
+      video: pr.videoDetails && pr.videoDetails.videoId, lang: use || null };
   }
 
   // A track fetched straight from its own address, with the pass borrowed from one the player

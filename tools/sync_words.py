@@ -31,6 +31,11 @@ def load():
     return cl, engine
 
 
+def load_lang():
+    import cvlang
+    return cvlang
+
+
 def pats(lst):
     return [p.pattern if hasattr(p, "pattern") else p for p in lst]
 
@@ -54,6 +59,7 @@ def js_regex(rx):
 
 def build():
     cl, engine = load()
+    cvlang = load_lang()
     sets = lambda d: {k: sorted(v) for k, v in d.items()}
     data = {
         "from": "CleanView " + json.loads((CLEANVIEW / "version.json").read_text())["version"],
@@ -130,6 +136,14 @@ def build():
         "NAME_CATS": list(engine.NAME_CATS), "NOT_NAME_AFTER": sorted(engine.NOT_NAME_AFTER),
         "SAID_IN_TITLES": sorted(engine.SAID_IN_TITLES),
         "GOD_PRAYER_NEXT": sorted(engine.GOD_PRAYER_NEXT),
+        # Spanish (cvlang.py, CleanView 1.18.80+; the owner, 2026-11-19, for CleanStream: "yes"):
+        # the word lists, phrases and their "left alone" words, and the everyday words a line's
+        # language is told by
+        "ES": {"words": {k: pats(v) for k, v in cvlang.WORDS["es"].items()},
+               "phrases": {k: [list(p) for p in v] for k, v in cvlang.PHRASES["es"].items()},
+               "not_next": sets(cvlang.NOT_NEXT["es"]), "not_before": sets(cvlang.NOT_BEFORE["es"]),
+               "order": list(cvlang.ORDER)},
+        "LITTLE_WORDS": {k: sorted(cvlang.LITTLE_WORDS[k]) for k in ("en", "es")},
     }
     text = ("// Made by tools/sync_words.py from CleanView's word lists. Don't edit by hand:\n"
             "// change the words in CleanView, then run the tool again.\n"
