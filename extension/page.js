@@ -141,9 +141,12 @@
     // the YouTube app window), the player can still have the last video's details for a moment:
     // wait up to 10 s for this one's (the owner, 2026-11-19: "after refreshing it seems to work
     // better"; it worked "about half the time" in the app)
+    // (a player that doesn't say which video it has: gone ahead with after 2 s, as before)
     let tracks = englishTracks(p);
-    for (let k = 0; k < 40 && tracks.video !== video; k++) { await wait(250); tracks = englishTracks(p); }
-    if (tracks.video !== video) return said("captions-done", { video, error: "other video" });
+    for (let k = 0; k < 40 && tracks.video !== video && !(tracks.video == null && k >= 8); k++) {
+      await wait(250); tracks = englishTracks(p);
+    }
+    if (tracks.video && tracks.video !== video) return said("captions-done", { video, error: "other video" });
     if (!tracks.written && !tracks.auto)
       return said("captions-done", { video, none: true, others: tracks.others });
     const before = p.getOption("captions", "track") || {};
