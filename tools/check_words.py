@@ -53,6 +53,9 @@ SENTENCES = [
     "They be the best pets, that coon of mine", "the coon washes every blessed thing",
     "you dirty coon", "the hounds treed a coon", "Thank God and seek faith", "Thank God you're here",
     "Thank the Lord and pray for rain",
+    # CleanView 1.18.139
+    "Screw the government.", "Screw the Columbians", "screw the lid on", "screw the bulb back in",
+    "screw the two pieces together",
 ]
 GROUP_SETS = [["strong", "moderate", "mild", "deity", "minced", "samesex", "rude"],
               ["strong", "moderate"], ["mild", "deity"], ["minced", "rude"], ["samesex"]]

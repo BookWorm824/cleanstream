@@ -129,7 +129,8 @@
   const WIENER_DOG = setOf("WIENER_DOG"), BALL_GAME = setOf("BALL_GAME"), DRUNK_BEFORE = setOf("DRUNK_BEFORE"),
     DRUNK_NEXT = setOf("DRUNK_NEXT"), STONED_NEXT = setOf("STONED_NEXT"), STONED_BEFORE2 = setOf("STONED_BEFORE2"),
     PERCOCET_MISUSE = setOf("PERCOCET_MISUSE"), JUNKIE_NOT = setOf("JUNKIE_NOT"), HIGH_NOT_NEXT = setOf("HIGH_NOT_NEXT"),
-    SHOOT_UP_OK_NEXT = setOf("SHOOT_UP_OK_NEXT"), STRUNG_NOT_NEXT = setOf("STRUNG_NOT_NEXT");
+    SHOOT_UP_OK_NEXT = setOf("SHOOT_UP_OK_NEXT"), STRUNG_NOT_NEXT = setOf("STRUNG_NOT_NEXT"),
+    SHOOT_UP_THINGS = setOf("SHOOT_UP_THINGS");
   const PERCOCET_REACH = W.PERCOCET_REACH || 10, JOIN_NEXT_SECS = W.JOIN_NEXT_SECS || 2;
   const wordsOf = t => t.toLowerCase().match(/[a-z']+/g) || [];
   const before = (text, m, n) => wordsOf(text.slice(0, m.index)).slice(-n);
@@ -173,7 +174,12 @@
     const rest = text.slice(m.index + m[0].length), nxt = nextWord(text, m, /^\s*[.!?;,]/);
     if (f.startsWith("junkie")) return !!prev && JUNKIE_NOT.has(prev);
     if (f === "kush") return prev === "hindu";
-    if (f.startsWith("shoot")) return !!nxt && !SHOOT_UP_OK_NEXT.has(nxt);
+    if (f.startsWith("shoot")) {
+      if (nxt && !SHOOT_UP_OK_NEXT.has(nxt)) return true;
+      // things that shoot up, rising ("the flames were shooting up", "the temperature's
+      // shooting up"; CleanView 1.18.139), within the 4 words before
+      return before(text, m, 4).map(w => w.replace(/'s$/, "")).some(w => SHOOT_UP_THINGS.has(w));
+    }
     if (f.endsWith(" high")) return !!nxt && HIGH_NOT_NEXT.has(nxt);
     if (f === "strung out") return !!nxt && STRUNG_NOT_NEXT.has(nxt);
     if (f === "oxy" || f === "oxys") return rest.startsWith("-");

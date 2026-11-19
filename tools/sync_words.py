@@ -118,6 +118,7 @@ def build():
         "PERCOCET_MISUSE": sorted(engine.PERCOCET_MISUSE), "PERCOCET_REACH": engine.PERCOCET_REACH,
         "JUNKIE_NOT": sorted(engine.JUNKIE_NOT), "HIGH_NOT_NEXT": sorted(engine.HIGH_NOT_NEXT),
         "SHOOT_UP_OK_NEXT": sorted(engine.SHOOT_UP_OK_NEXT), "STRUNG_NOT_NEXT": sorted(engine.STRUNG_NOT_NEXT),
+        "SHOOT_UP_THINGS": sorted(getattr(engine, "SHOOT_UP_THINGS", ())),     # 1.18.139
         "JOIN_NEXT_SECS": engine.JOIN_NEXT_SECS,
         "LIST_WORD_TRIM": js_regex(engine.LIST_WORD_TRIM),
         "STRIPPER_NEXT": sorted(engine.STRIPPER_NEXT),
