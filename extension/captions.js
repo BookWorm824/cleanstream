@@ -314,13 +314,19 @@
       // a swear YouTube hid is surely a swear, and its timing is the caption maker's guess: wider
       const pad = (m.timed ? 0 : GUESS_PAD) + (m.text === HIDDEN_SAID ? HIDDEN_PAD : 0);
       let from = Math.max(0, m.s - PAD_BEFORE - pad);
-      // a word with its own time: the early start takes at most the last half of the word said
-      // before it (the owner, 2026-11-19: a Short "muted 3 words instead of 1" in fast talk)
-      if (m.timed && m.prevS != null && m.prevS < m.s) from = Math.max(from, m.prevS + (m.s - m.prevS) / 2);
+      // a word with its own time: the early start keeps off most of the word said before it (the
+      // owner, 2026-11-19: a Short "muted 3 words instead of 1" in fast talk, then "still taking
+      // too much": "some s***ty woman", each word a quarter second)
+      // Only in quick talk: the sound goes off at most a quarter of the way back into the word
+      // before (or leaves it 0.45 s), counting the player's 0.08 s head start; in slower talk the
+      // full early start stays ("the first part of a letter" mustn't slip through)
+      if (m.timed && m.prevS != null && m.prevS < m.s) {
+        const gap = m.s - m.prevS, lead = Math.max(gap * 0.25, gap - 0.45);
+        from = Math.max(from, Math.min(m.s, m.s - lead + 0.08));
+      }
       let to = m.e + PAD_AFTER + pad;
-      // ... and the late end at most the first half of the word after
-      if (m.timed && m.nextS != null && m.nextE > m.nextS && m.nextS >= m.e - 0.05)
-        to = Math.min(to, Math.max(m.e + PAD_AFTER, m.nextS + (m.nextE - m.nextS) / 2));
+      // ... and the late end barely into the word after (its start is where this word ends)
+      if (m.timed && m.nextS != null && m.nextS >= m.e - 0.05) to = Math.min(to, m.nextS + 0.04);
       return { ...m, from, to };
     }).sort((a, b) => a.from - b.from);
     return { mutes, left, source: written && auto ? "both" : written ? "written" : auto ? "auto" : "none" };
