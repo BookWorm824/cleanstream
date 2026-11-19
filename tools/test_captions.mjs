@@ -124,4 +124,13 @@ test("mutes that touch are joined for the player", () => {
   assert.deepEqual(r, [[1, 3], [5, 6]]);
 });
 
+test("quick talk: a little word before ('a') goes with the word, a real word before stays", () => {
+  const W = "blow" + "job";
+  const p = CC.plan({ auto: CC.readJson3({ events: [asr(65000, ["never", "given", "a", W], 240)] }, true) }, adults);
+  assert.equal(p.mutes.length, 1);
+  assert.ok(Math.abs(p.mutes[0].from - (65.48 + 0.08)) < 1e-6);   // off as "a" starts (with the 0.08 head start)
+  const q = CC.plan({ auto: CC.readJson3({ events: [asr(0, ["some", "shitty", "woman"], 250)] }, true) }, kids);
+  assert.ok(q.mutes[0].from > 0.25 - 0.1);                        // "some" is mostly heard
+});
+
 console.log(`${passed} passed`);

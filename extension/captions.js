@@ -18,6 +18,9 @@
   // then 0.25: "sometimes i can hear the first part of a letter of the word", 2026-11-18; only a
   // little more, so the word before is kept: "try not to make it too much longer")
   const PAD_BEFORE = 0.33, PAD_AFTER = 0.08, LONGEST_WORD = 1.2, JOIN_GAP = 0.2;
+  // little words said just before a word to mute: muting them too costs nothing (quick-talk mutes)
+  const LITTLE_BEFORE = new Set(["a", "an", "the", "my", "your", "his", "her", "our", "their", "its",
+    "to", "of", "in", "on", "at"]);
   // a written caption's word placed by its share of the line: wider, since it's a guess
   const GUESS_PAD = 0.35;
 
@@ -130,7 +133,8 @@
     DRUNK_NEXT = setOf("DRUNK_NEXT"), STONED_NEXT = setOf("STONED_NEXT"), STONED_BEFORE2 = setOf("STONED_BEFORE2"),
     PERCOCET_MISUSE = setOf("PERCOCET_MISUSE"), JUNKIE_NOT = setOf("JUNKIE_NOT"), HIGH_NOT_NEXT = setOf("HIGH_NOT_NEXT"),
     SHOOT_UP_OK_NEXT = setOf("SHOOT_UP_OK_NEXT"), STRUNG_NOT_NEXT = setOf("STRUNG_NOT_NEXT"),
-    SHOOT_UP_THINGS = setOf("SHOOT_UP_THINGS");
+    SHOOT_UP_THINGS = setOf("SHOOT_UP_THINGS"), DRUNK_THING = setOf("DRUNK_THING"), DRUNK_BE = setOf("DRUNK_BE"),
+    DRUNK_SOMEONE = setOf("DRUNK_SOMEONE"), DRUNK_BY_NOT = setOf("DRUNK_BY_NOT"), DRUNK_FEELING = setOf("DRUNK_FEELING");
   const PERCOCET_REACH = W.PERCOCET_REACH || 10, JOIN_NEXT_SECS = W.JOIN_NEXT_SECS || 2;
   const wordsOf = t => t.toLowerCase().match(/[a-z']+/g) || [];
   const before = (text, m, n) => wordsOf(text.slice(0, m.index)).slice(-n);
@@ -149,10 +153,33 @@
     const f = m[0].toLowerCase();
     return f.startsWith("rub") && f.endsWith("ball") && nearBy(text, m, 8).some(w => BALL_GAME.has(w));
   }
+  // a drink that "was drunk", "drunk by the gods", "thou hast drunk", "drunk with joy"
+  // (cleanview.drunk_old_use, CleanView 1.18.140)
+  function drunkOldUse(text, m, prev) {
+    if (["thou'st", "hast", "hath"].includes(prev)) return true;
+    const sentence = text.slice(0, m.index).split(/[.!?;,]/).pop();
+    const near = wordsOf(sentence).slice(-7);
+    for (let k = near.length - 1; k > Math.max(-1, near.length - 3); k--) {     // "was (always) drunk"
+      if (DRUNK_BE.has(near[k])) {
+        const subject = near.slice(Math.max(0, k - 5), k);
+        if (subject.some(w => DRUNK_THING.has(w)) && !subject.some(w => DRUNK_SOMEONE.has(w))) return true;
+        break;
+      }
+    }
+    const rest = text.slice(m.index + m[0].length);
+    if (/^\s*[.!?;,]/.test(rest)) return false;
+    const nxt = wordsOf(rest).slice(0, 4);
+    if (nxt[0] === "by" && nxt.length > 1) {
+      if (["all", "everyone", "everybody", "them", "him", "her", "us"].includes(nxt[1])) return true;
+      if (nxt[1] === "the" && nxt.length > 2 && !DRUNK_BY_NOT.has(nxt[2])) return true;
+    }
+    return nxt[0] === "with" && nxt.slice(1, 4).some(w => DRUNK_FEELING.has(w));
+  }
   function drunkDrink(text, m) {         // "had drunk his tea": what was drunk, not being drunk
     if (m[0].toLowerCase() !== "drunk") return false;
     const prev = before(text, m, 1)[0], nxt = nextWord(text, m);
     if (nxt && DRUNK_NEXT.has(nxt)) return true;
+    if (drunkOldUse(text, m, prev)) return true;
     if (prev && DRUNK_BEFORE.has(prev))
       return !["he's", "she's"].includes(prev) || (!!nxt && ["the", "a", "an", "his", "her", "my", "your", "their",
         "our", "it", "all", "some", "that", "this", "too", "enough", "every"].includes(nxt));
@@ -217,7 +244,7 @@
       const after = ws.slice(b).find(x => x.w || x.hidden);
       out.push({ s: span[0].s, e: span[span.length - 1].e, text: span.map(x => x.raw).join(" "),
         cat, why: why || LABEL[cat] || cat, timed: span.every(x => x.timed), track: kind,
-        cue: span[0].ci, prevS: prior && prior.timed ? prior.s : null,
+        cue: span[0].ci, prevS: prior && prior.timed ? prior.s : null, prevW: prior ? prior.w : null,
         nextS: after && after.timed ? after.s : null, nextE: after && after.timed ? after.e : null });
     };
     for (const [a, b, cat] of CS.findLanguage(words, cats, mine)) {
@@ -304,7 +331,7 @@
         const hit = autoWords.findIndex((x, k) => x.w === want[0] && Math.abs(x.s - m.s) < 2.5 &&
           want.every((w, j) => autoWords[k + j] && autoWords[k + j].w === w));
         const timed = hit >= 0 ? { ...m, s: autoWords[hit].s, e: autoWords[hit + want.length - 1].e, timed: true,
-          prevS: hit > 0 ? autoWords[hit - 1].s : null,
+          prevS: hit > 0 ? autoWords[hit - 1].s : null, prevW: hit > 0 ? autoWords[hit - 1].w : null,
           nextS: autoWords[hit + want.length] ? autoWords[hit + want.length].s : null,
           nextE: autoWords[hit + want.length] ? autoWords[hit + want.length].e : null } : m;
         if (!alreadyMuted(mutes, timed)) mutes.push(timed);
@@ -320,9 +347,13 @@
       // Only in quick talk: the sound goes off at most a quarter of the way back into the word
       // before (or leaves it 0.45 s), counting the player's 0.08 s head start; in slower talk the
       // full early start stays ("the first part of a letter" mustn't slip through)
+      // A little word just before ("a", "the", "my") may go with it: the sound goes off as that
+      // word starts, never into the one before it (the owner, 2026-11-19: "never given a b******"
+      // got through in a stand-up set, "a" a quarter second before it left no early start at all)
       if (m.timed && m.prevS != null && m.prevS < m.s) {
         const gap = m.s - m.prevS, lead = Math.max(gap * 0.25, gap - 0.45);
-        from = Math.max(from, Math.min(m.s, m.s - lead + 0.08));
+        const back = LITTLE_BEFORE.has(m.prevW) ? Math.min(gap, PAD_BEFORE) : lead;
+        from = Math.max(from, Math.min(m.s, m.s - back + 0.08));
       }
       let to = m.e + PAD_AFTER + pad;
       // ... and the late end barely into the word after (its start is where this word ends)

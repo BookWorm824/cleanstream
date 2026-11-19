@@ -19,6 +19,11 @@ EXT = HERE.parent / "extension"
 CLEANVIEW = Path(os.environ.get("CLEANVIEW_REPO") or HERE.parent.parent / "CleanView Setup" / "cleanview-repo")
 KINDS = ["sexref", "casual", "crude", "samesex", "forensic", "drugtalk"]
 EXTRA = [
+    # old uses of "drunk" (CleanView 1.18.140, from CleanListen 62d10cf)
+    "The toast was drunk in ginger wine.", "The health of the Earl was drunk.", "which was always drunk",
+    "the nectar drunk by the gods", "Thou hast drunk deep.", "drunk with the joy of it", "drunk with delight",
+    "He was drunk by noon.", "drunk by the time we got there", "The beer was cold and he was drunk.",
+    "The guy who drank the whiskey was drunk.",
     "I want to go down on you", "get down on your knees and pray", "he had drunk his tea", "she's drunk",
     "they stoned him to death", "man, I am so stoned", "stoned olives", "they shall surely be stoned",
     "an adrenaline junkie", "a heroin junkie", "the Hindu Kush", "smoking kush", "he got high marks",
