@@ -157,10 +157,12 @@
     const r = await fetch(UPDATE_URL, { cache: "no-store" });
     const latest = r.ok ? (await r.json()).version : null;
     if (latest && newer(latest, mine)) {
-      // Firefox updates the add-on itself (tools/make_firefox.py makes that copy)
+      // Firefox can't update it by itself (Mozilla refused update_url; the owner, 2026-11-18:
+      // "mozilla says no updates still"): the signed file is installed again from the link
       $("update-say").textContent = /Firefox\//.test(navigator.userAgent)
-        ? `A new version of CleanStream (${latest}) is ready. Firefox gets it by itself; to get it now, ` +
-          `open Firefox's menu, then "Add-ons and themes", the gear button, and "Check for Updates".`
+        ? `A new version of CleanStream (${latest}) is ready. To get it, open ` +
+          `github.com/BookWorm824/cleanstream/raw/main/firefox/CleanStream-Firefox.xpi in Firefox, ` +
+          `then click the downloaded file and "Add".`
         : `A new version of CleanStream (${latest}) is ready. To get it, ` +
           `double-click "Update CleanStream" on your desktop (the first time: the "update" file in ` +
           `the CleanStream folder, which chrome://extensions shows under "Loaded from").`;
