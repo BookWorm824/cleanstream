@@ -14,13 +14,16 @@
     ["sexref", "Sexual words (sex, sexy, condom…)", "words"],
     ["casual", "Sleeping around (slept with, an affair…)", "words"],
     ["crude", "Crude humor words (fart, poop…)", "words"],
+    // CleanView's "Coroner and doctor talk" (0.4.6; the owner, 2026-11-18: a crime word went
+    // through): unticked for Adults, as in CleanView
+    ["forensic", "Coroner and crime talk (autopsy, sexual assault…)", "words"],
   ];
   const ALL = Object.fromEntries(FILTERS.map(([k]) => [k, true]));
   const PRESETS = {
     young: { ...ALL },
     kids: { ...ALL },
     teens: { ...ALL, rude: false, minced: false, crude: false },
-    adults: { ...ALL, minced: false, rude: false, crude: false },
+    adults: { ...ALL, minced: false, rude: false, crude: false, forensic: false },
   };
   const DEFAULTS = { on: true, profile: "kids", ticks: {}, mine: "" };
 

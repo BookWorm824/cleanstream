@@ -121,7 +121,8 @@
   // ---------- finding what to mute ----------
   const LABEL = { strong: "Swearing", moderate: "Swearing", mild: "Mild word", deity: "God's name",
     minced: "Soft substitute", samesex: "Same-sex word", rude: "Rude word", mine: "Your word",
-    sexref: "Sexual reference", casual: "Sleeping around", crude: "Crude humor" };
+    sexref: "Sexual reference", casual: "Sleeping around", crude: "Crude humor",
+    forensic: "Coroner and crime talk" };
 
   function stripperTool(text, m) {
     const found = m[0].toLowerCase();
@@ -163,7 +164,8 @@
     }
     // the short lists that need no AI: just their words are muted (cleanview.list_words_only)
     // (same-sex words since CleanView 1.18.127: bi-curious, twink, shemale, under that tick)
-    for (const [key, tick] of [["sexref", "sexref"], ["casual", "casual"], ["crude", "crude"], ["samesex", "samesexwords"]]) {
+    for (const [key, tick] of [["sexref", "sexref"], ["casual", "casual"], ["crude", "crude"], ["samesex", "samesexwords"],
+                               ["forensic", "forensic"]]) {
       if (!ticks[tick] || !LINE_WORDS[key]) continue;
       cues.forEach((c, ci) => {
         // with the next line joined on: a phrase can be split between two caption lines (YouTube's

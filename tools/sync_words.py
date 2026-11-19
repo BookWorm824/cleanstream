@@ -98,7 +98,9 @@ def build():
         "COON_REACH": cl.COON_REACH, "THANK_GOD_AND": sorted(cl.THANK_GOD_AND),
         # the short phrase lists that need no AI (cleanview.LINE_WORDS), and the rules around them
         # (samesex since CleanView 1.18.127: bi-curious, twink, shemale are only there)
-        "LINE_WORDS": {k: js_regex(engine.LINE_WORDS[k]) for k in ("sexref", "casual", "crude", "samesex")},
+        # forensic ("Coroner and doctor talk") since CleanStream 0.4.6 (the owner, 2026-11-18:
+        # "it let r*** through")
+        "LINE_WORDS": {k: js_regex(engine.LINE_WORDS[k]) for k in ("sexref", "casual", "crude", "samesex", "forensic")},
         "LIST_WORD_TRIM": js_regex(engine.LIST_WORD_TRIM),
         "STRIPPER_NEXT": sorted(engine.STRIPPER_NEXT),
         "STRIPPER_BEFORE": sorted(engine.STRIPPER_BEFORE),
