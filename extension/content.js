@@ -88,6 +88,13 @@
 
   function captionsArrived(d) {
     if (d.video !== st.video) return;
+    // asked while an ad was starting, or the player wasn't ready: ask once more before giving up
+    // (the owner, 2026-11-18: after an ad it didn't find the captions; F5 found 170 things)
+    if ((d.error || (!d.none && !d.written && !d.auto)) && !st.askedAgain && st.askAgain) {
+      st.askedAgain = true;
+      st.askAgain();
+      return;
+    }
     hold(false);
     if (d.error) {
       st.captions = "error";
@@ -128,10 +135,25 @@
     if (!st.settings || !st.settings.on) { unmute(); return; }
     hold(true);
     say("CleanStream is getting this video's captions (the sound is off until it's ready)…", 0);
-    // the player must have this video loaded before its captions can be asked for
-    let tries = 0;
+    // the player must have this video loaded before its captions can be asked for, and not be
+    // playing an ad: asked during an ad, the answer was the ad's (no captions)
+    let tries = 0, adFirst = false;
+    st.askedAgain = false;
     const ask = () => {
       if (st.video !== id) return;
+      if (adShowing()) {
+        if (!adFirst) say("CleanStream will get this video's captions when the ad ends…", 0);
+        adFirst = true;
+        hold(true);                             // the waiting starts again after the ad
+        setTimeout(ask, 500);
+        return;
+      }
+      if (adFirst) {                            // the ad just ended: let the video load first
+        adFirst = false;
+        say("CleanStream is getting this video's captions (the sound is off until it's ready)…", 0);
+        setTimeout(ask, 1000);
+        return;
+      }
       const p = document.getElementById("movie_player");
       if (!p || !videoEl() || tries++ > 60) {
         if (tries > 60) say("CleanStream couldn't find the video player on this page.", 8);
@@ -140,6 +162,7 @@
       }
       window.postMessage({ [TAG]: "content", type: "get-captions", video: id }, "*");
     };
+    st.askAgain = () => { tries = 0; hold(true); setTimeout(ask, 1500); };
     setTimeout(ask, 800);
   }
 

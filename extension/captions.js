@@ -14,8 +14,10 @@
     SAID_IN_TITLES = new Set(W.SAID_IN_TITLES), GOD_PRAYER_NEXT = new Set(W.GOD_PRAYER_NEXT);
 
   // what a mute covers around a word (seconds): a little before it starts, a little after
-  // (PAD_BEFORE was 0.12: "the beginnings of words need muted a hair sooner", the owner, 2026-11-17)
-  const PAD_BEFORE = 0.25, PAD_AFTER = 0.08, LONGEST_WORD = 1.2, JOIN_GAP = 0.2;
+  // (PAD_BEFORE was 0.12: "the beginnings of words need muted a hair sooner", the owner, 2026-11-17;
+  // then 0.25: "sometimes i can hear the first part of a letter of the word", 2026-11-18; only a
+  // little more, so the word before is kept: "try not to make it too much longer")
+  const PAD_BEFORE = 0.33, PAD_AFTER = 0.08, LONGEST_WORD = 1.2, JOIN_GAP = 0.2;
   // a written caption's word placed by its share of the line: wider, since it's a guess
   const GUESS_PAD = 0.35;
 

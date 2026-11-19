@@ -84,7 +84,7 @@ try {
   let p = await fx.open(`http://127.0.0.2:${s.address().port}/gp/video/detail/B0TEST`, 24000);
   let log = await p.eval("log"), status = await p.eval(STATUS);
   console.log("Prime:", status, JSON.stringify(log));
-  if (!/3 words/.test(status || "") || !near(log, "title", 6.0, 7.4) || !near(log, "title", 10.4, 12.4) || !near(log, "title", 14.4, 15.9))
+  if (!/3 words/.test(status || "") || !near(log, "title", 5.85, 7.4) || !near(log, "title", 10.25, 12.4) || !near(log, "title", 14.25, 15.9))
     problems.push("Prime muting");
 
   s = await serve("127.0.0.3", netflixPage, u => u.startsWith("/subs/") ? ["application/ttml+xml", ttml] : null);
@@ -92,7 +92,7 @@ try {
   p = await fx.open(`http://127.0.0.3:${s.address().port}/watch/81234567`, 15000);
   log = await p.eval("log"); status = await p.eval(STATUS);
   console.log("Netflix:", status, JSON.stringify(log));
-  if (!/2 words/.test(status || "") || !near(log, "nf", 6.0, 7.4) || !near(log, "nf", 10.4, 12.4)) problems.push("Netflix muting");
+  if (!/2 words/.test(status || "") || !near(log, "nf", 5.85, 7.4) || !near(log, "nf", 10.25, 12.4)) problems.push("Netflix muting");
 
   s = await serve("127.0.0.4", youtubePage);
   servers.push(s);
@@ -100,7 +100,7 @@ try {
   log = await p.eval("log"); status = await p.eval(STATUS);
   console.log("YouTube:", status, JSON.stringify(log));
   // the sound is off from the first moment until the captions are in, then off for "damn" only
-  if (!/1 word/.test(status || "") || !log.length || log[0][2] !== true || !near(log, "yt", 8.5, 8.9)) problems.push("YouTube muting");
+  if (!/1 word/.test(status || "") || !log.length || log[0][2] !== true || !near(log, "yt", 8.1, 8.9)) problems.push("YouTube muting");
 
   const errs = fx.logs.filter(l => /^error/i.test(l) && /moz-extension|cleanstream/i.test(l));
   if (errs.length) { console.log("add-on errors:", errs.slice(0, 8)); problems.push("add-on errors"); }

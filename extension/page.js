@@ -59,6 +59,25 @@
     } else if (!on && st) st.remove();
   }
 
+  /** What YouTube has saved about captions in this browser (its "sticky caption" choice...). */
+  function captionChoices() {
+    const out = {};
+    try {
+      for (let k = 0; k < localStorage.length; k++) {
+        const key = localStorage.key(k);
+        if (/caption/i.test(key) && /^yt/i.test(key)) out[key] = localStorage.getItem(key);
+      }
+    } catch (e) { /* storage blocked: nothing to put back */ }
+    return out;
+  }
+  function putBack(saved) {
+    try {
+      const now = captionChoices();
+      for (const key of Object.keys(now)) if (!(key in saved)) localStorage.removeItem(key);
+      for (const [key, v] of Object.entries(saved)) if (now[key] !== v) localStorage.setItem(key, v);
+    } catch (e) { /* storage blocked */ }
+  }
+
   /** The English caption tracks the video has: the written ones first, then auto-made. */
   function englishTracks(p) {
     const pr = (p.getPlayerResponse && p.getPlayerResponse()) || window.ytInitialPlayerResponse || {};
@@ -120,6 +139,10 @@
       return said("captions-done", { video, none: true, others: tracks.others });
     const before = p.getOption("captions", "track") || {};
     const wasOn = !!(before && before.languageCode);
+    // YouTube remembers turning captions on as the viewer's own choice (saved in the page's
+    // storage), and then shows them on every video (the owner, 2026-11-18: "the captions are
+    // coming onscreen by itself"): what it had saved about captions is put back afterwards
+    const saved = captionChoices();
     hideCaptions(true);
     const out = {};
     try {
@@ -133,6 +156,9 @@
         if (wasOn) p.setOption("captions", "track", before);
         else { p.setOption("captions", "track", {}); p.unloadModule && p.unloadModule("captions"); }
       } catch (e) { /* left as it is */ }
+      putBack(saved);
+      setTimeout(() => putBack(saved), 600);              // YouTube may save a moment later
+      setTimeout(() => putBack(saved), 2500);
       setTimeout(() => hideCaptions(false), 400);
     }
     said("captions-done", { video, written: out.written || null, auto: out.auto || null,
