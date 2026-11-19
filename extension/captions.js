@@ -212,9 +212,13 @@
     const keep = (a, b, cat, why) => {
       const span = ws.slice(a, b).filter(x => x.w || x.hidden);
       if (!span.length) return;
+      // the word said just before (its start), so the early start of a mute can stop short of it
+      const prior = ws.slice(0, a).filter(x => x.w || x.hidden).pop();
+      const after = ws.slice(b).find(x => x.w || x.hidden);
       out.push({ s: span[0].s, e: span[span.length - 1].e, text: span.map(x => x.raw).join(" "),
         cat, why: why || LABEL[cat] || cat, timed: span.every(x => x.timed), track: kind,
-        cue: span[0].ci });
+        cue: span[0].ci, prevS: prior && prior.timed ? prior.s : null,
+        nextS: after && after.timed ? after.s : null, nextE: after && after.timed ? after.e : null });
     };
     for (const [a, b, cat] of CS.findLanguage(words, cats, mine)) {
       // a mild word or soft substitute written as a name mid-sentence ("Detective Dern")
@@ -299,14 +303,25 @@
         const want = m.text.split(/\s+/).map(CS.norm).filter(Boolean);
         const hit = autoWords.findIndex((x, k) => x.w === want[0] && Math.abs(x.s - m.s) < 2.5 &&
           want.every((w, j) => autoWords[k + j] && autoWords[k + j].w === w));
-        const timed = hit >= 0 ? { ...m, s: autoWords[hit].s, e: autoWords[hit + want.length - 1].e, timed: true } : m;
+        const timed = hit >= 0 ? { ...m, s: autoWords[hit].s, e: autoWords[hit + want.length - 1].e, timed: true,
+          prevS: hit > 0 ? autoWords[hit - 1].s : null,
+          nextS: autoWords[hit + want.length] ? autoWords[hit + want.length].s : null,
+          nextE: autoWords[hit + want.length] ? autoWords[hit + want.length].e : null } : m;
         if (!alreadyMuted(mutes, timed)) mutes.push(timed);
       }
     }
     mutes = mutes.map(m => {
       // a swear YouTube hid is surely a swear, and its timing is the caption maker's guess: wider
       const pad = (m.timed ? 0 : GUESS_PAD) + (m.text === HIDDEN_SAID ? HIDDEN_PAD : 0);
-      return { ...m, from: Math.max(0, m.s - PAD_BEFORE - pad), to: m.e + PAD_AFTER + pad };
+      let from = Math.max(0, m.s - PAD_BEFORE - pad);
+      // a word with its own time: the early start takes at most the last half of the word said
+      // before it (the owner, 2026-11-19: a Short "muted 3 words instead of 1" in fast talk)
+      if (m.timed && m.prevS != null && m.prevS < m.s) from = Math.max(from, m.prevS + (m.s - m.prevS) / 2);
+      let to = m.e + PAD_AFTER + pad;
+      // ... and the late end at most the first half of the word after
+      if (m.timed && m.nextS != null && m.nextE > m.nextS && m.nextS >= m.e - 0.05)
+        to = Math.min(to, Math.max(m.e + PAD_AFTER, m.nextS + (m.nextE - m.nextS) / 2));
+      return { ...m, from, to };
     }).sort((a, b) => a.from - b.from);
     return { mutes, left, source: written && auto ? "both" : written ? "written" : auto ? "auto" : "none" };
   }
