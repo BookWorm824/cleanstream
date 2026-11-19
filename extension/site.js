@@ -48,8 +48,29 @@
     if (st.weMuted && v) v.muted = false;
     st.weMuted = false; mutedEl = null;
   }
-  /** Where the title is: the site's own clock when it has one (Prime: ads stitched in), else the video's. */
-  const titleTime = v => SITE.time ? SITE.time(v) : { t: v.currentTime, ad: false };
+  // Ads played inside the title's own video (stitched in: Prime) push its clock on. Each one's
+  // length is noted while it plays and taken off the clock (the owner, 2026-11-19: after four
+  // ads CleanStream's clock was 110 seconds ahead, and listed words played).
+  let adSpans = [], curAd = null, spanEl = null;
+  function noteAd(v, ad) {
+    if (v !== spanEl) { adSpans = []; curAd = null; spanEl = v; }
+    const t = v.currentTime;
+    if (ad && !(isFinite(v.duration) && v.duration <= AD_LONGEST)) {      // an ad inside the title's video
+      if (!curAd || t < curAd.to - 1) curAd = { from: t, to: t };
+      else curAd.to = t;
+    } else if (curAd) {
+      curAd.to = Math.max(curAd.to, Math.min(t, curAd.to + 1));          // the show starts here
+      if (curAd.to - curAd.from > 0.5 && !adSpans.some(s => Math.abs(s.from - curAd.from) < 1)) adSpans.push(curAd);
+      curAd = null;
+    }
+  }
+  const adTime = t => adSpans.reduce((sum, s) => s.to <= t + 0.5 ? sum + (s.to - s.from) : sum, 0);
+  /** Where the title is: the site's own clock on screen when it can be read, else the video's
+   *  clock with the ads taken off. */
+  function titleTime(v) {
+    const s = SITE.time ? SITE.time(v) : { t: v.currentTime, ad: false };
+    return s.clocked ? s : { ...s, t: v.currentTime - adTime(v.currentTime) };
+  }
   // An ad played as its own short video (Prime; the owner, 2026-11-19: "it mutes thing on the
   // ad also"): a video much shorter than the title's subtitles run isn't the title. Ads are
   // left alone, as on YouTube.
@@ -65,6 +86,7 @@
     if (st.weMuted && mutedEl && mutedEl !== v) unmute();       // swapped: let the old one go
     const rate = v.playbackRate || 1;
     const ad = isAd(v);
+    noteAd(v, ad);
     const at = ad ? { t: 0, ad: true } : titleTime(v);
     const want = !ad && (st.holding || (!v.paused && !at.ad && inRange(at.t, st.ranges, 0.08 * rate)));
     if (want && !v.muted) mute();
@@ -160,6 +182,7 @@
     st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting"; st.lastCue = 0;
     pieces = new Map(); whole = false;
     if (SITE.newTitle) SITE.newTitle();
+    spanEl = null;                                   // a new title: its own ads
     unmute(); hold(false);
     if (!id || !st.settings || !st.settings.on) return;
     hold(true);

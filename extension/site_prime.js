@@ -12,13 +12,14 @@
   const AD = ".atvwebplayersdk-ad-timer, .atvwebplayersdk-ad-timer-text, .atvwebplayersdk-adtimeindicator-text, [class*='adtimeindicator']";
 
   const seen = el => !!el && el.getClientRects().length > 0;
-  // an "Ad" / "Ad 1 of 2" / "Ad · 0:15" label shown over the player (looked at 4 times a second)
+  // an "Ad" / "Ad 1 of 2" / "Ad · 0:15" label shown over the player (looked at 20 times a second,
+  // so an ad's start and end are noted closely: its length comes off CleanStream's clock)
   // (not "Ad-free" or "Ad: learn more": 2026-11-19, the owner: listed words played on Prime)
   const AD_TEXT = /^(?:ad|ads|advertisement)(?:\s*(?:\d+\s*of\s*\d+|[·•|(]\s*\d|\d+:\d\d)|$)/i;
   let adSeen = false, adLooked = 0;
   function adLabel() {
     const now = Date.now();
-    if (now - adLooked < 250) return adSeen;
+    if (now - adLooked < 50) return adSeen;
     adLooked = now;
     const box = document.querySelector(BOX.join(","));
     adSeen = !!box && [...box.querySelectorAll("span, div, p")].some(el =>
@@ -50,7 +51,8 @@
         } else if (gap < offset) offset = gap;
       }
     }
-    return { t: v.currentTime - offset, ad };
+    // clocked: Prime's clock on screen was read (then its time is the title's, ads and all)
+    return { t: v.currentTime - offset, ad, clocked: trusted && base !== null };
   }
 
   globalThis.CS_SITE = {
