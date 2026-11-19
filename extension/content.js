@@ -96,6 +96,8 @@
 
   function captionsArrived(d) {
     if (d.video !== st.video) return;
+    // already muting from this video's captions: a later empty or failed answer changes nothing
+    if (st.captions === "ok" && (d.error || d.none || (!d.written && !d.auto))) return;
     // asked while an ad was starting, or the player wasn't ready: ask once more before giving up
     // (the owner, 2026-11-18: after an ad it didn't find the captions; F5 found 170 things)
     // (the player not on this video yet: up to 3 more times, each waiting up to 10 s)
@@ -172,7 +174,7 @@
       }
       window.postMessage({ [TAG]: "content", type: "get-captions", video: id }, "*");
     };
-    st.askAgain = () => { tries = 0; hold(true); setTimeout(ask, 1500); };
+    st.askAgain = () => { tries = 0; hold(true); setTimeout(() => { if (st.captions !== "ok") ask(); }, 1500); };
     setTimeout(ask, 800);
   }
 
