@@ -46,7 +46,11 @@
     return p;
   };
 
-  const player = () => document.getElementById("movie_player");
+  // the regular player on /watch, the Shorts one on /shorts/<id> (2026-11-19)
+  const player = () => location.pathname.startsWith("/shorts/")
+    ? document.querySelector("ytd-reel-video-renderer[is-active] #shorts-player") || document.getElementById("shorts-player") ||
+      document.querySelector("ytd-reel-video-renderer[is-active] .html5-video-player")
+    : document.getElementById("movie_player");
   const wait = ms => new Promise(r => setTimeout(r, ms));
 
   // hide captions on screen while CleanStream switches tracks, so nothing flashes up

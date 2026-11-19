@@ -50,13 +50,23 @@
   }
   /** Where the title is: the site's own clock when it has one (Prime: ads stitched in), else the video's. */
   const titleTime = v => SITE.time ? SITE.time(v) : { t: v.currentTime, ad: false };
+  // An ad played as its own short video (Prime; the owner, 2026-11-19: "it mutes thing on the
+  // ad also"): a video much shorter than the title's subtitles run isn't the title. Ads are
+  // left alone, as on YouTube.
+  const AD_LONGEST = 150;
+  function isAd(v) {
+    if (SITE.adShowing && SITE.adShowing()) return true;
+    const d = v.duration;
+    return isFinite(d) && d > 0 && d <= AD_LONGEST && st.lastCue > d + 60;
+  }
   function tick() {
     const v = videoEl();
     if (!v || !st.settings || !st.settings.on || !st.video) return;
     if (st.weMuted && mutedEl && mutedEl !== v) unmute();       // swapped: let the old one go
     const rate = v.playbackRate || 1;
-    const at = titleTime(v);
-    const want = st.holding || (!v.paused && !at.ad && inRange(at.t, st.ranges, 0.08 * rate));
+    const ad = isAd(v);
+    const at = ad ? { t: 0, ad: true } : titleTime(v);
+    const want = !ad && (st.holding || (!v.paused && !at.ad && inRange(at.t, st.ranges, 0.08 * rate)));
     if (want && !v.muted) mute();
     else if (!want && st.weMuted) unmute();
   }
@@ -108,6 +118,7 @@
   function replan() {
     if (!st.tracks || !st.settings) return;
     st.ticks = S.ticksFor(st.settings);
+    st.lastCue = Math.max(0, ...(st.tracks.written || []).map(c => c.e || 0));
     st.plan = CC.plan(st.tracks, st.ticks, st.settings.mine);
     st.ranges = st.settings.on ? CC.ranges(st.plan.mutes) : [];
     chrome.runtime.sendMessage({ type: "found", video: st.video, count: st.plan.mutes.length }).catch(() => {});
@@ -146,7 +157,7 @@
   }
 
   function startTitle(id) {
-    st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting";
+    st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting"; st.lastCue = 0;
     pieces = new Map(); whole = false;
     if (SITE.newTitle) SITE.newTitle();
     unmute(); hold(false);

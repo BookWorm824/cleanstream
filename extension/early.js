@@ -9,18 +9,21 @@
   chrome.storage.sync.get({ on: true }).then(s => { on = s.on !== false; }, () => {});
   globalThis.__csArmed = true;                      // content.js disarms it when it takes over
   globalThis.__csEarlyMuted = false;                // ... and adopts this mute (to undo it later)
+  // the regular player and the Shorts one (2026-11-19)
+  const PLAYERS = "#movie_player, #shorts-player";
+  const watching = () => location.pathname === "/watch" || location.pathname.startsWith("/shorts/");
+  const adOn = () => !!document.querySelector("#movie_player.ad-showing, #shorts-player.ad-showing");
   const hush = e => {
     const v = e.target;
-    if (!globalThis.__csArmed || !on || !(v instanceof HTMLVideoElement) || !v.closest("#movie_player")) return;
-    if (location.pathname !== "/watch" || document.querySelector("#movie_player.ad-showing")) return;
+    if (!globalThis.__csArmed || !on || !(v instanceof HTMLVideoElement) || !v.closest(PLAYERS)) return;
+    if (!watching() || adOn()) return;
     if (!v.muted) { v.muted = true; globalThis.__csEarlyMuted = true; }
   };
   for (const type of ["loadstart", "loadeddata", "canplay", "play", "playing"]) document.addEventListener(type, hush, true);
   // YouTube puts back its own volume setting as it loads: mute again until content.js takes over
   document.addEventListener("volumechange", e => {
     if (globalThis.__csArmed && on && e.target instanceof HTMLVideoElement &&
-        e.target.closest("#movie_player") && !e.target.muted && location.pathname === "/watch" &&
-        !document.querySelector("#movie_player.ad-showing")) {
+        e.target.closest(PLAYERS) && !e.target.muted && watching() && !adOn()) {
       e.target.muted = true; globalThis.__csEarlyMuted = true;
     }
   }, true);

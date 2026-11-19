@@ -12,11 +12,19 @@
     status: "", captions: "waiting", weMuted: false, title: "" };
   globalThis.__cleanstreamState = st;          // for the tests
 
+  // YouTube's player: the regular one on /watch, the Shorts one on /shorts/<id> (the owner,
+  // 2026-11-19: "it doesnt seem to work on the shorts")
+  const onShorts = () => location.pathname.startsWith("/shorts/");
+  const playerEl = () => onShorts()
+    ? document.querySelector("ytd-reel-video-renderer[is-active] #shorts-player") || document.getElementById("shorts-player") ||
+      document.querySelector("ytd-reel-video-renderer[is-active] .html5-video-player")
+    : document.getElementById("movie_player");
+
   // ---------- the status line on the video ----------
   let pill, pillTimer;
   function say(text, secs = 6) {
     st.status = text;
-    const host = document.getElementById("movie_player");
+    const host = playerEl();
     if (!host) return;
     if (!pill || !host.contains(pill)) {
       pill = document.createElement("div");
@@ -33,10 +41,10 @@
   }
 
   // ---------- which video ----------
-  const videoEl = () => document.querySelector("#movie_player video.html5-main-video") ||
-    document.querySelector("#movie_player video");
-  const adShowing = () => !!document.querySelector("#movie_player.ad-showing, #movie_player.ad-interrupting");
+  const videoEl = () => { const p = playerEl(); return p && (p.querySelector("video.html5-main-video") || p.querySelector("video")); };
+  const adShowing = () => { const p = playerEl(); return !!p && (p.classList.contains("ad-showing") || p.classList.contains("ad-interrupting")); };
   function currentVideo() {
+    if (onShorts()) return location.pathname.split("/")[2] || null;
     if (location.pathname !== "/watch") return null;
     return new URLSearchParams(location.search).get("v");
   }
@@ -154,7 +162,7 @@
         setTimeout(ask, 1000);
         return;
       }
-      const p = document.getElementById("movie_player");
+      const p = playerEl();
       if (!p || !videoEl() || tries++ > 60) {
         if (tries > 60) say("CleanStream couldn't find the video player on this page.", 8);
         else setTimeout(ask, 500);
@@ -218,7 +226,7 @@
   function maskShown() {
     if (!st.settings || !st.settings.on || !st.ticks) return;
     const cats = CS.catsFor(st.ticks);
-    for (const seg of document.querySelectorAll("#movie_player .ytp-caption-segment")) {
+    for (const seg of document.querySelectorAll("#movie_player .ytp-caption-segment, #shorts-player .ytp-caption-segment")) {
       if (seg.dataset.csShown === seg.textContent) continue;
       const parts = seg.textContent.split(/(\s+)/);
       const idx = [], words = [];
