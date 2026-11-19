@@ -156,9 +156,17 @@
     if (SITE.ask) window.postMessage({ [TAG]: SITE.contentTag, type: "get-subs", title: id }, "*");
   }
   let pending = null;            // subtitles that came before the title was known (Prime)
+  // messages that come before the settings are loaded wait for them (a plan can't be made
+  // without them: the subtitles were dropped, and only a refresh helped; 2026-11-19)
+  let ready = false;
+  const early = [];
   window.addEventListener("message", e => {
     const d = e.data;
     if (e.source !== window || !d || d[TAG] !== SITE.pageTag) return;
+    if (!ready) { early.push(d); return; }
+    handle(d);
+  });
+  function handle(d) {
     // Prime: the page script says which title is starting (no address to watch)
     if (d.type === "title" && !SITE.titleFromUrl && d.title !== st.video) {
       startTitle(d.title);
@@ -168,7 +176,7 @@
     // a subtitle file the player downloaded itself, when the list's own fetch failed
     if (d.type === "subs-seen" && d.title === st.video && st.captions !== "ok") subsArrived({ title: d.title, text: d.text });
     if (d.type === "subs-piece") pieceArrived(d);
-  });
+  }
 
   // ---------- following the page's changes (neither site reloads between titles) ----------
   function check() {
@@ -202,5 +210,12 @@
       site: SITE.name });
   });
 
-  (async () => { st.settings = await S.load(); check(); })();
+  (async () => {
+    st.settings = await S.load();
+    ready = true;
+    check();
+    for (const d of early.splice(0)) handle(d);
+    // anything the page script had before this part was listening is sent again
+    window.postMessage({ [TAG]: SITE.contentTag, type: "hello" }, "*");
+  })();
 })();

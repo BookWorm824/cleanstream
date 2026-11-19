@@ -10,7 +10,18 @@
   if (window.__cleanstreamOther) return;
   window.__cleanstreamOther = true;
   const TAG = "cleanstream";
-  const said = (type, data) => window.postMessage({ [TAG]: "ot-page", type, ...data }, "*");
+  // what was said is kept, and said again when CleanStream's part of the page is ready (as Prime)
+  const kept = [];
+  const said = (type, data) => {
+    if (type === "subs-done") kept.push({ type, data });
+    else if (type === "subs-piece" && kept.length < 400) kept.push({ type, data });
+    window.postMessage({ [TAG]: "ot-page", type, ...data }, "*");
+  };
+  window.addEventListener("message", e => {
+    const d = e.data;
+    if (e.source !== window || !d || d[TAG] !== "ot-content" || d.type !== "hello") return;
+    for (const k of kept) window.postMessage({ [TAG]: "ot-page", type: k.type, ...k.data }, "*");
+  });
   const F = window.fetch;
   const title = () => location.pathname;
   const looksLikeSubs = t => typeof t === "string" && (/^\s*(﻿)?WEBVTT/.test(t) || /<tt[\s>]/.test(t.slice(0, 3000)));

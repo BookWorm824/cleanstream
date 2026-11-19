@@ -7,7 +7,23 @@
   if (window.__cleanstreamPrime) return;
   window.__cleanstreamPrime = true;
   const TAG = "cleanstream";
-  const said = (type, data) => window.postMessage({ [TAG]: "pv-page", type, ...data }, "*");
+  // what was said is kept, and said again when CleanStream's part of the page says it's ready
+  // (the owner, 2026-11-19: on Prime "i do have to refresh it multiple times": the subtitles
+  // could come before that part was listening, and were lost)
+  const last = {};
+  const said = (type, data) => {
+    if (type === "title") { if (last.title !== data.title) { last.subs = null; last.seen = null; } last.title = data.title; }
+    if (type === "subs-done") last.subs = data;
+    if (type === "subs-seen") last.seen = data;
+    window.postMessage({ [TAG]: "pv-page", type, ...data }, "*");
+  };
+  window.addEventListener("message", e => {
+    const d = e.data;
+    if (e.source !== window || !d || d[TAG] !== "pv-content" || d.type !== "hello") return;
+    if (last.title) said("title", { title: last.title });
+    if (last.subs) said("subs-done", last.subs);
+    else if (last.seen) said("subs-seen", last.seen);
+  });
   const F = window.fetch;
 
   const RESOURCES = /GetPlaybackResources|GetVodPlaybackResources|\/playback\/prs\//i;
