@@ -27,6 +27,9 @@
     "to", "of", "in", "on", "at"]);
   // a written caption's word placed by its share of the line: wider, since it's a guess
   const GUESS_PAD = 0.35;
+  // every mute starts this much sooner again (the owner, 2026-11-20: "it's catching about 96%.
+  // some words i can hear just the hint of a letter", "start very slightly earlier")
+  const EARLIER = 0.07;
 
   // ---------- reading json3 ----------
   // Sound descriptions and speaker marks aren't words said: [Music], (laughs), >>, ♪
@@ -427,6 +430,7 @@
         const back = LITTLE_BEFORE.has(m.prevW) ? Math.min(gap, PAD_BEFORE) : lead;
         from = Math.max(from, Math.min(m.s, m.s - back + 0.08));
       }
+      from = Math.max(0, from - EARLIER);
       let to = m.e + PAD_AFTER + pad;
       // ... and the late end barely into the word after (its start is where this word ends)
       if (m.timed && m.nextS != null && m.nextS >= m.e - 0.05) to = Math.min(to, m.nextS + 0.04);

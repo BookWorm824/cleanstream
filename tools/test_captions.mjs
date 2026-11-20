@@ -132,7 +132,7 @@ test("quick talk: a little word before ('a') goes with the word, a real word bef
   const W = "blow" + "job";
   const p = CC.plan({ auto: CC.readJson3({ events: [asr(65000, ["never", "given", "a", W], 240)] }, true) }, adults);
   assert.equal(p.mutes.length, 1);
-  assert.ok(Math.abs(p.mutes[0].from - (65.48 + 0.08)) < 1e-6);   // off as "a" starts (with the 0.08 head start)
+  assert.ok(Math.abs(p.mutes[0].from - (65.48 + 0.08 - 0.07)) < 1e-6);   // off as "a" starts (the 0.08 head start, 0.07 sooner)
   const q = CC.plan({ auto: CC.readJson3({ events: [asr(0, ["some", "shitty", "woman"], 250)] }, true) }, kids);
   assert.ok(q.mutes[0].from > 0.25 - 0.1);                        // "some" is mostly heard
 });
