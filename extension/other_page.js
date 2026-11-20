@@ -28,8 +28,11 @@
   const SUB_URL = /\.(vtt|webvtt|dfxp|ttml2?|xml)(\?|$)/i;
   // English, or Spanish (the owner, 2026-11-19: Spanish, "yes"): English files are tried first
   const isEnglish = l => /^en(\b|[-_])/i.test(l || "") || /^english/i.test(l || "") ||
-    /^es(\b|[-_])/i.test(l || "") || /^(spanish|español|espanol)/i.test(l || "");
-  const spanish = l => /^es(\b|[-_])/i.test(l || "") || /^(spanish|español|espanol)/i.test(l || "");
+    /^(es|de|it)(\b|[-_])/i.test(l || "") || /^(spanish|español|espanol|german|deutsch|italian|italiano)/i.test(l || "");
+  // not English: tried after the English files (German and Italian too since the owner's "share
+  // the lists with cleanstream", 2026-11-19)
+  const spanish = l => /^(es|de|it)(\b|[-_])/i.test(l || "") ||
+    /^(spanish|español|espanol|german|deutsch|italian|italiano)/i.test(l || "");
 
   /** English subtitle file addresses in a JSON answer, best first (closed captions first). */
   function englishFiles(obj, out = [], depth = 0, under = "") {

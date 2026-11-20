@@ -90,21 +90,25 @@
     return v;
   };
   const TEXT_KINDS = ["webvtt-lssdh-ios8", "dfxp-ls-sdh", "simplesdh", "imsc1.1"];   // not the picture ones
-  // English, or Spanish (the owner, 2026-11-19: Spanish, "yes"): Spanish first when that's the
-  // language the title is playing in, else English first, Spanish when there's no English
+  // English, or Spanish, German or Italian (the owner, 2026-11-19: Spanish, "yes"; German and
+  // Italian, "share the lists with cleanstream"): the language the title is playing in first,
+  // else English first, then the others when there's no English
   const langOf = t => {
     const code = String(t.bcp47 || t.language || t.languageCode || "").toLowerCase();
     const name = String(t.displayName || t.languageDescription || "").toLowerCase();
     if (/^en\b/.test(code) || /^english\b/.test(name)) return "en";
     if (/^es\b/.test(code) || /^(spanish|español|espanol)\b/.test(name)) return "es";
+    if (/^de\b/.test(code) || /^(german|deutsch)\b/.test(name)) return "de";
+    if (/^it\b/.test(code) || /^(italian|italiano)\b/.test(name)) return "it";
     return "";
   };
   function order(p) {
     try {
       const a = p && p.getAudioTrack && p.getAudioTrack();
-      if (a && langOf(a) === "es") return ["es", "en"];
+      const L = a && langOf(a);
+      if (L && L !== "en") return [L, ...["en", "es", "de", "it"].filter(x => x !== L)];
     } catch (e) { /* not known */ }
-    return ["en", "es"];
+    return ["en", "es", "de", "it"];
   }
   const isCC = t => /ASSISTIVE|CLOSEDCAPTIONS|SDH/i.test(t.trackType || t.rawTrackType || "");
   function fileOf(track) {

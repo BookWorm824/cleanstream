@@ -249,8 +249,8 @@
   }
 
   /** Words of one track to mute: [{s, e, words, cat, why, track}] and ones left alone. */
-  /** Each line's language ("en" or "es"): told by its own words, or, with nothing to go by
-   *  ("Pendejo."), the line just before or after it (within 3 s), else English. */
+  /** Each line's language ("en", "es", "de", "it", "nl"): told by its own words, or, with
+   *  nothing to go by ("Pendejo."), the line just before or after it (within 3 s), else English. */
   function linesLang(cues) {
     const langs = cues.map(c => CS.lineLang(c.text));
     for (let k = 1; k < cues.length; k++)
@@ -262,8 +262,12 @@
   /** Her own words and phrases, as one language's lists have them. */
   const mineFor = (mineText, normFn) => (mineText || "").split("\n")
     .map(l => l.split(/[\s-]+/).map(normFn).filter(Boolean)).filter(l => l.length);
+  /** Her own words, for each other language: {es: [...], de: [...], it: [...]}. */
+  const mineByLang = mineText => Object.fromEntries(CS.otherLangs()
+    .map(code => [code, mineFor(mineText, w => CS.langNorm(w, code))]));
 
-  function findInTrack(cues, ticks, mine, kind, mineEs = []) {
+  function findInTrack(cues, ticks, mine, kind, mineOther = {}) {
+    if (Array.isArray(mineOther)) mineOther = { es: mineOther };
     const cats = CS.catsFor(ticks), ws = flat(cues), names = kind === "written" ? namesIn(cues) : new Set();
     const out = [], left = [];
     const words = ws.map(x => x.w);
@@ -278,7 +282,13 @@
         cue: span[0].ci, prevS: prior && prior.timed ? prior.s : null, prevW: prior ? prior.w : null,
         nextS: after && after.timed ? after.s : null, nextE: after && after.timed ? after.e : null });
     };
+    const langs = linesLang(cues), others = new Set(CS.otherLangs());
     for (const [a, b, cat] of CS.findLanguage(words, cats, mine)) {
+      // German "hell" (bright) on a German line, Spanish "Jesús" on a Spanish one
+      if (b - a === 1 && cat !== "mine" && CS.sameSpelling(ws[a].raw, langs[ws[a].ci])) {
+        left.push({ s: ws[a].s, text: ws[a].raw, why: "an everyday " + CS.langName(langs[ws[a].ci]) + " word here" });
+        continue;
+      }
       // a mild word or soft substitute written as a name mid-sentence ("Detective Dern")
       if (kind === "written" && b - a === 1 && NAME_CATS.has(cat) && nameHere(ws, cues, a)) {
         left.push({ s: ws[a].s, text: ws[a].raw, why: "looks like a name here" });
@@ -286,18 +296,18 @@
       }
       keep(a, b, cat);
     }
-    // Spanish lines: their words with the Spanish lists too (an English line's Spanish swears are
-    // on the English lists' short list)
-    const langs = linesLang(cues);
+    // Spanish, German and Italian lines: their words with that language's lists too (an English
+    // line's Spanish swears are on the English lists' short list)
     cues.forEach((c, ci) => {
-      if (langs[ci] !== "es") return;
+      const lang = langs[ci];
+      if (!others.has(lang)) return;
       const idx = [];
       ws.forEach((x, k) => { if (x.ci === ci) idx.push(k); });
-      const esw = idx.map(k => (ws[k].hidden ? "" : CS.esNorm(ws[k].raw)));
-      for (const [a, b, cat] of CS.esFindLanguage(esw, cats, mineEs)) {
+      const lw = idx.map(k => (ws[k].hidden ? "" : CS.langNorm(ws[k].raw, lang)));
+      for (const [a, b, cat] of CS.langFindLanguage(lw, cats, mineOther[lang] || [], lang)) {
         const A = idx[a], B = idx[b - 1] + 1;
         if (out.some(o => o.cue === ci && o.s <= ws[A].s + 0.01 && o.e >= ws[B - 1].e - 0.01)) continue;
-        keep(A, B, cat, (LABEL[cat] || cat) + " (Spanish)");
+        keep(A, B, cat, (LABEL[cat] || cat) + " (" + CS.langName(lang) + ")");
       }
     });
     // a swear YouTube hid as "[ __ ]" (its auto captions do that for strong words)
@@ -348,9 +358,9 @@
   /** The whole plan for a video. tracks: {auto: cues|null, written: cues|null}.
    *  Returns {mutes: [{s, e, text, why}], left: [...], source}. */
   function plan(tracks, ticks, mineText = "") {
-    const mine = mineFor(mineText, CS.norm), mineEs = mineFor(mineText, CS.esNorm);
-    const auto = tracks.auto && tracks.auto.length ? findInTrack(tracks.auto, ticks, mine, "auto", mineEs) : null;
-    const written = tracks.written && tracks.written.length ? findInTrack(tracks.written, ticks, mine, "written", mineEs) : null;
+    const mine = mineFor(mineText, CS.norm), mineOther = mineByLang(mineText);
+    const auto = tracks.auto && tracks.auto.length ? findInTrack(tracks.auto, ticks, mine, "auto", mineOther) : null;
+    const written = tracks.written && tracks.written.length ? findInTrack(tracks.written, ticks, mine, "written", mineOther) : null;
     let mutes = [], left = [];
     if (auto) {
       for (const m of auto.mutes) {
@@ -467,16 +477,19 @@
   const lineFinds = (key, text) => LINE_WORDS[key] ? [...text.matchAll(LINE_WORDS[key])]
     .filter(m => !innocent(key, text, m)).map(m => m[0]) : [];
   /** Which of a shown line's words to star (YouTube's captions on screen, the other sites'
-   *  subtitles): the indexes in raws, its words as shown. English lists, and the Spanish ones
-   *  when the line is Spanish. */
+   *  subtitles): the indexes in raws, its words as shown. English lists, and the line's own
+   *  language's lists when it's Spanish, German or Italian. */
   let mineMemo = null;
   function starIdx(raws, lineText, cats, mineText) {
     if (!mineMemo || mineMemo.text !== (mineText || ""))
-      mineMemo = { text: mineText || "", en: mineFor(mineText, CS.norm), es: mineFor(mineText, CS.esNorm) };
+      mineMemo = { text: mineText || "", en: mineFor(mineText, CS.norm), other: mineByLang(mineText) };
     const out = new Set();
-    for (const [a, b] of CS.findLanguage(raws.map(CS.norm), cats, mineMemo.en)) for (let k = a; k < b; k++) out.add(k);
-    if (CS.lineLang(lineText) === "es")
-      for (const [a, b] of CS.esFindLanguage(raws.map(CS.esNorm), cats, mineMemo.es)) for (let k = a; k < b; k++) out.add(k);
+    const lang = CS.lineLang(lineText);
+    for (const [a, b, cat] of CS.findLanguage(raws.map(CS.norm), cats, mineMemo.en))
+      if (!(b - a === 1 && cat !== "mine" && CS.sameSpelling(raws[a], lang))) for (let k = a; k < b; k++) out.add(k);
+    if (lang && lang !== "en" && CS.otherLangs().includes(lang))
+      for (const [a, b] of CS.langFindLanguage(raws.map(w => CS.langNorm(w, lang)), cats, mineMemo.other[lang] || [], lang))
+        for (let k = a; k < b; k++) out.add(k);
     return out;
   }
   globalThis.CSCaptions = { starIdx, linesLang, readJson3, readTTML, readVTT, readSubtitles, plan, ranges, findInTrack, soundsAlike, LABEL,

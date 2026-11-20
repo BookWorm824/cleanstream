@@ -178,4 +178,26 @@ test("CleanView 1.18.144: a hen's cuck-cuck, 'Darn her,' as the oath, the bottle
   assert.deepEqual(said("Two bottles had been opened and Tom was drunk."), ["drunk."]);
 });
 
+test("German and Italian: each line in its own language; German 'hell' (bright) left alone", () => {
+  const wr = CC.readJson3({ events: [
+    written(1000, 2000, "What the hell is going on?"),
+    written(4000, 2000, "Scheiße, du Arschloch!"),
+    written(7000, 2000, "Draußen ist es schon hell."),
+    written(10000, 2000, "Che cazzo fai?"),
+    written(13000, 2000, "Vai all'inferno, idiota!"),
+    written(16000, 2000, "Grüß Gott, Herr Müller."),
+  ] }, false);
+  const p = CC.plan({ written: wr }, kids);
+  assert.deepEqual(p.mutes.map(m => m.text), ["What the hell", "Scheiße,", "Arschloch!", "cazzo", "Vai all'inferno,", "idiota!"]);
+  assert.ok(p.mutes.find(m => m.text === "cazzo").why.includes("Italian"));
+  assert.ok(p.left.some(x => x.text === "hell." && /German/.test(x.why)));
+  const cats = globalThis.CSWords.catsFor(kids);
+  const line = "Was zum Teufel, du Vollidiot?";
+  assert.deepEqual([...CC.starIdx(line.split(" "), line, cats, "")].sort(), [1, 2, 4]);
+  assert.deepEqual([...CC.starIdx("Es ist so hell hier".split(" "), "Es ist so hell hier", cats, "")], []);
+  // her own words, in German
+  const own = CC.plan({ written: CC.readJson3({ events: [written(0, 2000, "Das ist so ein Quatsch, ich weiß.")] }, false) }, adults, "so ein Quatsch");
+  assert.deepEqual(own.mutes.map(m => m.text), ["so ein Quatsch,"]);
+});
+
 console.log(`${passed} passed`);

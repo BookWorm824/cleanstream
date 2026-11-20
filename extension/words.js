@@ -332,28 +332,42 @@
     return core.length <= 1 ? word : core[0] + "*".repeat(core.length - 1);
   }
 
-  // ---------- Spanish (cvlang.py: norm, find_language for "es") ----------
-  // The owner, 2026-11-19: "can clean stream doing any spanish?", then "yes", and "some shows
-  // are mostly english with some spanish in but bad words in both". Each subtitle line is
-  // checked in its own language (lineLang): a Spanish line with these lists, as well as the
-  // English ones (which already have a short list of Spanish swears for English films).
-  const ES = W.ES || { words: {}, phrases: {}, not_next: {}, not_before: {}, order: [] };
-  const ES_WORDS = Object.fromEntries(Object.entries(ES.words).map(([k, v]) => [k, full(v)]));
-  const ES_NOT_NEXT = setsOf(ES.not_next), ES_NOT_BEFORE = setsOf(ES.not_before);
-  /** A word as the Spanish lists have it: small letters, no punctuation, no accents (ñ kept). */
-  function esNorm(w) {
-    w = String(w).normalize("NFC").toLowerCase().replace(/[’‘]/g, "'").replace(/ñ/g, "\0")
-      .normalize("NFD").replace(/\p{M}/gu, "").replace(/\0/g, "ñ");
-    return stripP(w.replace(/[^\p{L}\p{N}']/gu, ""), "'");
+  // ---------- other languages (cvlang.py: norm, find_language) ----------
+  // Spanish (the owner, 2026-11-19: "can clean stream doing any spanish?", then "yes", and "some
+  // shows are mostly english with some spanish in but bad words in both"), German and Italian
+  // (CleanView 1.18.145; the owner: "share the lists with cleanstream"). Each subtitle line is
+  // checked in its own language (lineLang): such a line with its language's lists, as well as
+  // the English ones (which have a short list of Spanish swears for English films).
+  const LANGS = W.LANGS || (W.ES ? { es: W.ES } : {});
+  const LANG_ORDER = W.LANG_ORDER || (W.ES && W.ES.order) || [];
+  const LANG_NAMES = { es: "Spanish", de: "German", it: "Italian" };
+  const L = Object.fromEntries(Object.entries(LANGS).map(([code, d]) => [code, {
+    words: Object.fromEntries(Object.entries(d.words).map(([k, v]) => [k, full(v)])),
+    phrases: d.phrases, notNext: setsOf(d.not_next), notBefore: setsOf(d.not_before),
+    spelled: Object.entries(d.spelled_out || {}),
+    elided: d.elided ? new RegExp("^(?:" + d.elided + ")") : null }]));
+  /** A word as one language's lists have it (cvlang.norm): small letters, German letters
+   *  spelled out (ä = ae, ß = ss), no punctuation, no accents (ñ kept), joined-on short words
+   *  off (Italian "dell'idiota" = "idiota"). */
+  function langNorm(w, lang) {
+    const d = L[lang] || {};
+    w = String(w).normalize("NFC").toLowerCase().replace(/[’‘]/g, "'");
+    for (const [a, b] of d.spelled || []) w = w.split(a).join(b);
+    w = w.replace(/ñ/g, "\0").normalize("NFD").replace(/\p{M}/gu, "").replace(/\0/g, "ñ");
+    w = w.replace(/[^\p{L}\p{N}']/gu, "");
+    if (d.elided) while (d.elided.test(w)) w = w.replace(d.elided, "");
+    return stripP(w, "'");
   }
-  const esInnocent = (words, i) => {
+  const langInnocent = (d, words, i) => {
     const w = words[i], nxt = i + 1 < words.length ? words[i + 1] : "", prev = i ? words[i - 1] : "";
-    return !!((ES_NOT_NEXT[w] && ES_NOT_NEXT[w].has(nxt)) || (ES_NOT_BEFORE[w] && ES_NOT_BEFORE[w].has(prev)));
+    return !!((d.notNext[w] && d.notNext[w].has(nxt)) || (d.notBefore[w] && d.notBefore[w].has(prev)));
   };
-  /** Spans [i, j, category] of words[i:j] to mute (cvlang.find_language). words: esNorm()ed. */
-  function esFindLanguage(words, cats, mine = []) {
+  /** Spans [i, j, category] of words[i:j] to mute (cvlang.find_language). words: langNorm()ed. */
+  function langFindLanguage(words, cats, mine = [], lang = "es") {
+    const d = L[lang];
+    if (!d) return [];
     const has = new Set(cats), n = words.length, hits = [];
-    const phrases = ES.order.filter(c => has.has(c)).flatMap(c => (ES.phrases[c] || []).map(p => [p, c]))
+    const phrases = LANG_ORDER.filter(c => has.has(c)).flatMap(c => (d.phrases[c] || []).map(p => [p, c]))
       .sort((a, b) => b[0].length - a[0].length);
     const seen = new Set();
     mine = byLen(mine.filter(p => { const k = p.join(" "); return !seen.has(k) && seen.add(k); }));
@@ -364,38 +378,61 @@
       const got = phrases.find(([p]) => at(words, i, p));
       if (got) { hits.push([i, i + got[0].length, got[1]]); i += got[0].length; continue; }
       const w = words[i];
-      const cat = ES.order.find(c => has.has(c) && (ES_WORDS[c] || []).some(p => p.test(w)));
-      if (cat && !esInnocent(words, i)) hits.push([i, i + 1, cat]);
+      const cat = LANG_ORDER.find(c => has.has(c) && (d.words[c] || []).some(p => p.test(w)));
+      if (cat && !langInnocent(d, words, i)) hits.push([i, i + 1, cat]);
       i += 1;
     }
     return hits;
   }
+  const esNorm = w => langNorm(w, "es");
+  const esFindLanguage = (words, cats, mine = []) => langFindLanguage(words, cats, mine, "es");
 
-  // Telling a line's language by its everyday words (cvlang.which_language's lists, en and es):
-  // a word only one of the two has counts for more. ¿ ¡ ñ say Spanish on their own; accents
-  // lean Spanish ("Cállate"). A line with nothing to go by says null.
+  // Telling a line's language by its everyday words (cvlang.which_language's lists): a word only
+  // one language has counts 2, one several share counts 1. Letters lean a language: ¿ ¡ ñ say
+  // Spanish on their own; á í ó ú lean Spanish ("Cállate"), à è ì ò ù Italian ("perché" has é,
+  // so é leans neither), ä ö ü ß German; "dell'", "c'è" Italian. Dutch ("nl") can be told, so
+  // it isn't taken for German, but has no lists. A line with nothing to go by, or a tie at the
+  // top, says null.
   const plainW = w => w.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z']/g, "");
-  const LW = W.LITTLE_WORDS || { en: [], es: [] };
-  const EN_LITTLE = new Set(LW.en.map(plainW)), ES_LITTLE = new Set(LW.es.map(plainW));
+  const LW = W.LITTLE_WORDS || { en: [] };
+  const LITTLE = Object.fromEntries(Object.entries(LW).map(([k, v]) => [k, new Set(v.map(plainW))]));
+  const IT_ELIDED = L.it && L.it.elided;
   function lineLang(text) {
-    if (!ES.order.length) return "en";
-    if (/[¿¡ñÑ]/.test(text)) return "es";
-    let en = 0, es = 0;
+    if (!Object.keys(L).length) return "en";
+    if (L.es && /[¿¡ñÑ]/.test(text)) return "es";
+    const score = Object.fromEntries(Object.keys(LITTLE).map(k => [k, 0]));
+    const add = (k, n) => { if (k in score) score[k] += n; };
     for (const raw of text.split(/\s+/)) {
       const t = plainW(raw);
       if (!t) continue;
-      const inEn = EN_LITTLE.has(t), inEs = ES_LITTLE.has(t);
-      if (inEn) en += inEs ? 1 : 2;
-      if (inEs) es += inEn ? 1 : 2;
-      if (/[áéíóúÁÉÍÓÚ]/.test(raw)) es += 1;
+      const inL = Object.keys(LITTLE).filter(k => LITTLE[k].has(t));
+      for (const k of inL) score[k] += inL.length === 1 ? 2 : 1;
+      if (/[áíóúÁÍÓÚ]/.test(raw)) add("es", 1);
+      if (/[àèìòùÀÈÌÒÙ]/.test(raw)) add("it", 1);
+      if (/[äöüßÄÖÜẞ]/.test(raw)) add("de", 2);
+      if (IT_ELIDED && /^\p{L}+'\p{L}/u.test(raw) && IT_ELIDED.test(raw.toLowerCase().replace(/’/g, "'"))
+          && !LITTLE.en.has(t)) add("it", 1);
     }
-    return es > en ? "es" : en > es ? "en" : null;
+    const best = Math.max(...Object.values(score));
+    if (best <= 0) return null;
+    const top = Object.keys(score).filter(k => score[k] === best);
+    return top.length === 1 ? top[0] : null;
   }
+  // An English list word that is an everyday word in the line's own language, left alone on
+  // such a line: German "hell" (bright), "dick" (thick), "Schmuck" (jewellery); Spanish "Jesús"
+  // (a name; CleanView's Spanish list leaves it out on purpose). Only CleanStream reads one
+  // video in two languages, so this list is its own.
+  const SAME_SPELLING = { de: set(["hell", "dick", "schmuck"]), es: set(["jesus"]) };
+  const sameSpelling = (word, lang) => !!(SAME_SPELLING[lang] && SAME_SPELLING[lang].has(norm(word)));
+  /** The languages with lists besides English, and their names. */
+  const otherLangs = () => Object.keys(L);
+  const langName = code => LANG_NAMES[code] || code;
 
   // The tick boxes for words -> the word lists' categories (cvcore.GROUPS)
   const GROUPS = W.GROUPS;
   const catsFor = ticks => Object.entries(GROUPS).filter(([g]) => ticks[g]).flatMap(([, c]) => c);
 
   globalThis.CSWords = { norm, findLanguage, listedWord, neverFine, alwaysRemoved, mask, GROUPS,
-    catsFor, unbleep, unabbreviate, base, from: W.from, esNorm, esFindLanguage, lineLang };
+    catsFor, unbleep, unabbreviate, base, from: W.from, esNorm, esFindLanguage, lineLang,
+    langNorm, langFindLanguage, otherLangs, langName, sameSpelling };
 })();

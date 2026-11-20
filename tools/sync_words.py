@@ -31,6 +31,11 @@ def load():
     return cl, engine
 
 
+# the languages CleanStream cleans besides English (the others CleanView has: French,
+# Portuguese, Russian; the owner, 2026-11-19: "spanish works", then German and Italian)
+OTHER_LANGS = ("es", "de", "it")
+
+
 def load_lang():
     import cvlang
     return cvlang
@@ -139,14 +144,21 @@ def build():
         "NAME_CATS": list(engine.NAME_CATS), "NOT_NAME_AFTER": sorted(engine.NOT_NAME_AFTER),
         "SAID_IN_TITLES": sorted(engine.SAID_IN_TITLES),
         "GOD_PRAYER_NEXT": sorted(engine.GOD_PRAYER_NEXT),
-        # Spanish (cvlang.py, CleanView 1.18.80+; the owner, 2026-11-19, for CleanStream: "yes"):
-        # the word lists, phrases and their "left alone" words, and the everyday words a line's
-        # language is told by
-        "ES": {"words": {k: pats(v) for k, v in cvlang.WORDS["es"].items()},
-               "phrases": {k: [list(p) for p in v] for k, v in cvlang.PHRASES["es"].items()},
-               "not_next": sets(cvlang.NOT_NEXT["es"]), "not_before": sets(cvlang.NOT_BEFORE["es"]),
-               "order": list(cvlang.ORDER)},
-        "LITTLE_WORDS": {k: sorted(cvlang.LITTLE_WORDS[k]) for k in ("en", "es")},
+        # Other languages (cvlang.py): Spanish (CleanView 1.18.80+; the owner, 2026-11-19, for
+        # CleanStream: "yes"), German and Italian (CleanView 1.18.145; the owner: "share the
+        # lists with cleanstream"). The word lists, phrases and their "left alone" words, how a
+        # word is written for them (letters spelled out, joined-on short words), and the everyday
+        # words a line's language is told by ("nl": named, not cleaned, as CleanView has it)
+        "LANGS": {code: {"words": {k: pats(v) for k, v in cvlang.WORDS[code].items()},
+                         "phrases": {k: [list(p) for p in v] for k, v in cvlang.PHRASES[code].items()},
+                         "not_next": sets(cvlang.NOT_NEXT[code]),
+                         "not_before": sets(cvlang.NOT_BEFORE[code]),
+                         "spelled_out": dict(cvlang.SPELLED_OUT.get(code, {})),
+                         "elided": cvlang.ELIDED[code].pattern if code in cvlang.ELIDED else None}
+                  for code in OTHER_LANGS if code in cvlang.WORDS},
+        "LANG_ORDER": list(cvlang.ORDER),
+        "LITTLE_WORDS": {k: sorted(cvlang.LITTLE_WORDS[k]) for k in ("en", *OTHER_LANGS, "nl")
+                         if k in cvlang.LITTLE_WORDS},
     }
     text = ("// Made by tools/sync_words.py from CleanView's word lists. Don't edit by hand:\n"
             "// change the words in CleanView, then run the tool again.\n"

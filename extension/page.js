@@ -82,16 +82,18 @@
     } catch (e) { /* storage blocked */ }
   }
 
-  /** The caption tracks to read: the written ones first, then auto-made. English, or Spanish
-   *  when that's what is spoken (YouTube's auto-made captions are in the language said) or the
-   *  video has no English ones (the owner, 2026-11-19: Spanish, "yes"). */
+  /** The caption tracks to read: the written ones first, then auto-made. English, or Spanish,
+   *  German or Italian when that's what is spoken (YouTube's auto-made captions are in the
+   *  language said) or the video has no English ones (the owner, 2026-11-19: Spanish, "yes";
+   *  German and Italian, "share the lists with cleanstream"). */
   function englishTracks(p) {
     const pr = (p.getPlayerResponse && p.getPlayerResponse()) || window.ytInitialPlayerResponse || {};
     const all = (pr.captions && pr.captions.playerCaptionsTracklistRenderer &&
       pr.captions.playerCaptionsTracklistRenderer.captionTracks) || [];
-    const lang = t => (/^(en|es)\b/i.exec(t.languageCode || "") || [""])[0].toLowerCase();
+    const lang = t => (/^(en|es|de|it)\b/i.exec(t.languageCode || "") || [""])[0].toLowerCase();
     const spoken = all.filter(t => t.kind === "asr").map(lang)[0];
-    const order = spoken === "es" ? ["es", "en"] : ["en", "es"];
+    const LANGS = ["en", "es", "de", "it"];
+    const order = spoken && spoken !== "en" ? [spoken, ...LANGS.filter(l => l !== spoken)] : LANGS;
     const use = order.find(l => all.some(t => lang(t) === l));
     const mine = use ? all.filter(t => lang(t) === use) : [];
     const written = mine.filter(t => t.kind !== "asr");
