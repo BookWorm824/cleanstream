@@ -28,8 +28,9 @@
   // a written caption's word placed by its share of the line: wider, since it's a guess
   const GUESS_PAD = 0.35;
   // ... and longer after it: the end of a guessed word got through (the owner, 2026-11-20, Prime:
-  // "it muted the word jopling but played the itch in the b word")
-  const GUESS_AFTER = 0.3;
+  // "it muted the word jopling but played the itch in the b word"; 0.8 since 0.4.34: the word
+  // came 2 s after the line's guess, "its muting mostly", and to longer mutes, "longer mutes i guess")
+  const GUESS_AFTER = 0.8;
   // every mute starts this much sooner again (the owner, 2026-11-20: "it's catching about 96%.
   // some words i can hear just the hint of a letter", "start very slightly earlier")
   const EARLIER = 0.07;

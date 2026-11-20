@@ -69,10 +69,11 @@ test("written captions alone: timing guessed within the line, wider mute", () =>
   const p = CC.plan({ written: wr }, kids);
   assert.equal(p.mutes.length, 1);
   assert.equal(p.mutes[0].timed, false);
-  assert.ok(p.mutes[0].from >= 19.4 && p.mutes[0].to <= 21.8);
-  // the end of a guessed word kept off longer (0.4.33; the owner, Prime: "played the itch in the b word")
+  assert.ok(p.mutes[0].from >= 19.4 && p.mutes[0].to <= 22.3);
+  // the end of a guessed word kept off longer (0.4.33, 0.4.34; the owner, Prime: "played the itch
+  // in the b word", "longer mutes i guess")
   const m = p.mutes[0];
-  assert.ok(Math.abs(m.to - (m.e + 0.08 + 0.35 + 0.3)) < 1e-6);
+  assert.ok(Math.abs(m.to - (m.e + 0.08 + 0.35 + 0.8)) < 1e-6);
 });
 
 test("bleeped written captions are still found (f***ing)", () => {

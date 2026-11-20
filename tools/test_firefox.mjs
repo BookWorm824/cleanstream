@@ -116,6 +116,8 @@ const serve = (host, page, extra = () => null) => new Promise(res => {
 });
 
 const problems = [];
+// (the ends: subtitle words' times are guessed, so the sound stays off 0.8 s longer after them, 0.4.34;
+// the owner: "longer mutes i guess")
 const near = (log, id, from, to) => {      // muted close to `from` and unmuted close to `to`
   const on = log.find(([v, t, m]) => v === id && m && Math.abs(t - from) < 0.5);
   const off = log.find(([v, t, m]) => v === id && !m && Math.abs(t - to) < 0.5);
@@ -132,7 +134,7 @@ try {
   let p = await fx.open(`http://127.0.0.2:${s.address().port}/gp/video/detail/B0TEST`, 24000);
   let log = await p.eval("log"), status = await p.eval(STATUS);
   console.log("Prime:", status, JSON.stringify(log));
-  if (!/3 words/.test(status || "") || !near(log, "title", 5.85, 7.4) || !near(log, "title", 10.25, 12.4) || !near(log, "title", 14.25, 15.9))
+  if (!/3 words/.test(status || "") || !near(log, "title", 5.85, 8.2) || !near(log, "title", 10.25, 13.2) || !near(log, "title", 14.25, 16.7))
     problems.push("Prime muting");
 
   s = await serve("127.0.0.3", netflixPage, u => u.startsWith("/subs/") ? ["application/ttml+xml", ttml] : null);
@@ -140,7 +142,7 @@ try {
   p = await fx.open(`http://127.0.0.3:${s.address().port}/watch/81234567`, 15000);
   log = await p.eval("log"); status = await p.eval(STATUS);
   console.log("Netflix:", status, JSON.stringify(log));
-  if (!/2 words/.test(status || "") || !near(log, "nf", 5.85, 7.4) || !near(log, "nf", 10.25, 12.4)) problems.push("Netflix muting");
+  if (!/2 words/.test(status || "") || !near(log, "nf", 5.85, 8.2) || !near(log, "nf", 10.25, 13.2)) problems.push("Netflix muting");
 
   s = await serve("127.0.0.4", youtubePage);
   servers.push(s);
@@ -187,7 +189,7 @@ try {
   log = await p.eval("log"); status = await p.eval("pills.join(' | ')");
   const seen = await p.eval("readable");
   console.log("Hulu (closed player):", status, JSON.stringify(log), "readable:", JSON.stringify(seen));
-  if (!/hiding the subtitles/.test(status || "") || seen.length || !near(log, "ot", 6.4, 8.2) || !near(log, "ot", 9.6, 11.8))
+  if (!/hiding the subtitles/.test(status || "") || seen.length || !near(log, "ot", 6.4, 9.0) || !near(log, "ot", 9.6, 12.6))
     problems.push("Hulu hidden subtitles");
 
   const errs = fx.logs.filter(l => /^error/i.test(l) && /moz-extension|cleanstream/i.test(l));
