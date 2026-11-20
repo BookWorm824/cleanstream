@@ -55,6 +55,20 @@
       while (lo < hi) { const mid = (lo + hi) >> 1; if (starts[mid] > s0 + 0.05) hi = mid; else lo = mid + 1; }
       return lo < starts.length ? starts[lo] : null;
     };
+    // ... and a line followed by a pause stays up long after it's said: its words placed at the
+    // speaker's own pace, from the lines that overlap the next (letters a second; the slower
+    // quarter, to be safe), not spread over all its time on screen (the owner, 2026-11-20: a
+    // comedy set's swears listed 2 s after they were said, "it started saying bad words")
+    const lineText = ev => ev.segs.filter(g => g.utf8 && g.utf8 !== "\n").map(g => g.utf8).join("").replace(/\s+/g, " ").trim();
+    let pace = null;
+    if (asr) {
+      const rates = ((data && data.events) || []).filter(ev => ev.segs && ev.tStartMs != null && ev.segs.length <= 2 &&
+        !ev.segs.some(g => g.tOffsetMs) && lineText(ev)).map(ev => {
+        const s0 = ev.tStartMs / 1000, nx = nextStart(s0);
+        return nx != null && nx < s0 + (ev.dDurationMs || 0) / 1000 && nx > s0 ? lineText(ev).length / (nx - s0) : null;
+      }).filter(r => r != null).sort((a, b) => a - b);
+      if (rates.length >= 5) pace = rates[Math.floor(rates.length / 4)];
+    }
     for (const ev of (data && data.events) || []) {
       if (!ev.segs || ev.tStartMs == null) continue;
       const s0 = ev.tStartMs / 1000, dur = (ev.dDurationMs || 0) / 1000;
@@ -80,7 +94,8 @@
         const total = said.length || 1;
         // spread over the time until the next line starts (at least half its time on screen)
         const nx = nextStart(s0);
-        const span = nx != null && nx < s0 + dur ? Math.max(nx - s0, dur * 0.5) : dur;
+        const span = nx != null && nx < s0 + dur ? Math.max(nx - s0, dur * 0.5)
+          : pace ? Math.min(dur, total / pace) : dur;
         let m; const re = /\S+/g;
         while ((m = re.exec(said))) {
           const hidden = /^⟦_+⟧$/.test(m[0]);
@@ -383,7 +398,11 @@
 
   /** The whole plan for a video. tracks: {auto: cues|null, written: cues|null}.
    *  Returns {mutes: [{s, e, text, why}], left: [...], source}. */
-  function plan(tracks, ticks, mineText = "") {
+  // opts.subtitles: a subtitle site's lines (Prime, Netflix, Hulu...), whose guessed words get the
+  // longer end (GUESS_AFTER); not YouTube, whose whole-line auto captions are guessed too (the
+  // owner, 2026-11-20, after 0.4.34: "the mutes on you tube are spanning multiple words", "can
+  // they be more exact")
+  function plan(tracks, ticks, mineText = "", opts = {}) {
     const mine = mineFor(mineText, CS.norm), mineOther = mineByLang(mineText);
     const auto = tracks.auto && tracks.auto.length ? findInTrack(tracks.auto, ticks, mine, "auto", mineOther) : null;
     const written = tracks.written && tracks.written.length ? findInTrack(tracks.written, ticks, mine, "written", mineOther) : null;
@@ -436,7 +455,7 @@
         from = Math.max(from, Math.min(m.s, m.s - back + 0.08));
       }
       from = Math.max(0, from - EARLIER);
-      let to = m.e + PAD_AFTER + pad + (m.timed ? 0 : GUESS_AFTER);
+      let to = m.e + PAD_AFTER + pad + (m.timed || !opts.subtitles ? 0 : GUESS_AFTER);
       // ... and the late end barely into the word after (its start is where this word ends)
       if (m.timed && m.nextS != null && m.nextS >= m.e - 0.05) to = Math.min(to, m.nextS + 0.04);
       return { ...m, from, to };

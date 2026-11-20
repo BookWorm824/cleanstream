@@ -183,7 +183,7 @@
     st.ticks = S.ticksFor(st.settings);
     st.cats = CS.catsFor(st.ticks);             // for starring the words in subtitles shown on screen
     st.lastCue = Math.max(0, ...(st.tracks.written || []).map(c => c.e || 0));
-    st.plan = CC.plan(st.tracks, st.ticks, st.settings.mine);
+    st.plan = CC.plan(st.tracks, st.ticks, st.settings.mine, { subtitles: true });
     st.ranges = st.settings.on ? CC.ranges(st.plan.mutes) : [];
     chrome.runtime.sendMessage({ type: "found", video: st.video, count: st.plan.mutes.length }).catch(() => {});
   }

@@ -70,10 +70,13 @@ test("written captions alone: timing guessed within the line, wider mute", () =>
   assert.equal(p.mutes.length, 1);
   assert.equal(p.mutes[0].timed, false);
   assert.ok(p.mutes[0].from >= 19.4 && p.mutes[0].to <= 22.3);
-  // the end of a guessed word kept off longer (0.4.33, 0.4.34; the owner, Prime: "played the itch
-  // in the b word", "longer mutes i guess")
+  // on a subtitle site, the end of a guessed word kept off longer (0.4.33, 0.4.34; the owner, Prime:
+  // "played the itch in the b word", "longer mutes i guess"); not on YouTube (0.4.35: "the mutes on
+  // you tube are spanning multiple words")
   const m = p.mutes[0];
-  assert.ok(Math.abs(m.to - (m.e + 0.08 + 0.35 + 0.8)) < 1e-6);
+  assert.ok(Math.abs(m.to - (m.e + 0.08 + 0.35)) < 1e-6);
+  const sm = CC.plan({ written: wr }, kids, "", { subtitles: true }).mutes[0];
+  assert.ok(Math.abs(sm.to - (sm.e + 0.08 + 0.35 + 0.8)) < 1e-6);
 });
 
 test("bleeped written captions are still found (f***ing)", () => {
@@ -228,6 +231,29 @@ test("newer auto captions (whole lines that overlap): words spread until the nex
   // a written line that ends before the next starts is spread as before
   const wr = CC.readJson3({ events: [written(0, 2000, "one two three four"), written(3000, 2000, "five")] }, false);
   assert.ok(Math.abs(wr[0].words[3].e - 2) < 1e-6);
+});
+
+// a whole line followed by a pause stays up long after it's said: its words at the speaker's pace,
+// from the lines that overlap (0.4.35; the owner, 2026-11-20, a comedy set on YouTube: swears
+// listed 2 s after they were said, "it started saying bad words"; the line and times are from it)
+test("newer auto captions: a line before a pause goes at the speaker's pace, not its time on screen", () => {
+  const line = (ms, dur, text) => ({ tStartMs: ms, dDurationMs: dur, wWinId: 1, segs: [{ utf8: text }] });
+  const ev = [
+    line(340919, 6641, "snapped don't say that word and I was\nlike what word and she said"),
+    line(345080, 6760, "[ __ ] I was like how come you can say\nshe said I'm a"),
+    line(349440, 6520, "[ __ ] and I have horrible eyes and I\nsaid you look"),
+    line(353120, 5840, "normal she said I'm on a stool you\n[ __ ]"),
+    line(360360, 6000, "that was the night I was punching the\nfun by a"),
+    line(363840, 6680, "[ __ ] cuz once they come running at you\nyou cannot slow them down I'll tell you"),
+    line(368200, 5000, "so we went on and on about it all\nnight long at the bar"),
+    line(371300, 5200, "and nobody said a single thing about\nit to anybody else"),
+  ];
+  const cues = CC.readJson3({ events: ev }, true);
+  const hid = cues[3].words.find(w => w.hidden);
+  // the slower quarter of the overlapping lines' letters a second; was 358.1 (spread over 5.84 s)
+  assert.ok(hid.s > 355.6 && hid.s < 356.6, String(hid.s));
+  // a line that overlaps the next is spread until the next starts, as before
+  assert.ok(Math.abs(cues[1].words[0].s - 345.08) < 1e-6);
 });
 
 // CleanView 1.18.150, the Swearing list sorted by type (the owner: "organize better by type",
