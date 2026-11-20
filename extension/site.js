@@ -489,7 +489,15 @@
     const was = st.settings && st.settings.on;
     st.settings = await S.load();
     if (!st.settings.on) { st.ranges = []; hold(false); unmute(); shownCheck(); return; }
-    if (!was) { st.video = null; check(); return; }
+    if (!was) {
+      st.video = null;
+      // Prime has no address to read the title from: its page script is asked to say again which
+      // title is playing and send its subtitles (it was forgotten for good, and nothing more was
+      // muted: the owner, 2026-11-20, "Start a video to see what CleanStream found" mid-title)
+      if (SITE.titleFromUrl) check();
+      else window.postMessage({ [TAG]: SITE.contentTag, type: "hello" }, "*");
+      return;
+    }
     replan();
   });
 

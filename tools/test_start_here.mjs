@@ -10,6 +10,7 @@
 // cc on automatically"). In a hidden, silent browser with stand-in pages:
 //  1. a page CleanStream doesn't start on (Amazon's home page) moves to a video without
 //     loading a new page: CleanStream is started there by itself, and doesn't hold the sound off;
+//     switched off and on, it still knows the title playing;
 //  2. the settings window can read what it found straight from the page;
 //  3. YouTube: running as before; the early quieting started again over a working copy leaves
 //     the sound alone; two caption requests at once leave the captions off, as they were.
@@ -69,6 +70,17 @@ try {
   await sleep(1500);
   const held = world && await page.eval("globalThis.__cleanstreamState && globalThis.__cleanstreamState.holding", { contextId: world });
   check(held === false, "started late, it doesn't hold the sound off while it waits");
+  // switched off and on again: it still knows which title is playing (0.4.33; the owner, 2026-11-20:
+  // "Start a video to see what CleanStream found" mid-title, and nothing more was muted). Prime's
+  // page script says again which title is playing when asked (as prime_page.js does)
+  await page.eval(`window.addEventListener("message", e => { const d = e.data; if (d && d.cleanstream === "pv-content" && d.type === "hello")
+    window.postMessage({ cleanstream: "pv-page", type: "title", title: "B0TEST" }, "*"); }); true`);
+  await page.eval(`chrome.storage.sync.set({ on: false })`, { contextId: world });
+  await sleep(700);
+  await page.eval(`chrome.storage.sync.set({ on: true })`, { contextId: world });
+  await sleep(1500);
+  const again = await page.eval("globalThis.__cleanstreamState.video", { contextId: world });
+  check(again === "B0TEST", "off and on again, it still knows the title playing: " + again);
 
   // 2. the settings window reads it straight from the page
   const pop = await b.open(`chrome-extension://${b.extensionId}/popup.html`);

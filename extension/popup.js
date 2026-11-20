@@ -97,7 +97,8 @@
     const site = (SITES.find(([re]) => re.test(url)) || [])[1] || null;
     // only what changed is written (the owner, 2026-11-18: the window "kinda flickering" as
     // everything was cleared and filled in again every 2 seconds)
-    const only = (say, src = "") => { set("video-say", say); set("video-src", src); $("video-clock").hidden = true; };
+    const only = (say, src = "") => { set("video-say", say); set("video-src", src); $("video-clock").hidden = true;
+      $("found-box").hidden = true; foundKey = null; };
     $("video-box").hidden = false;
     if (!site) {
       return only("Open a video on YouTube, Netflix, Prime Video, Hulu, Disney+, Max, Peacock or Paramount+ to use CleanStream.");
