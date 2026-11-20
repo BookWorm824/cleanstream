@@ -37,6 +37,17 @@
   /** json3 -> cues [{s, e, text, words: [{raw, w, s, e, timed}]}] (seconds). */
   function readJson3(data, asr) {
     const cues = [];
+    // A line's words are said before the next line starts. YouTube's newer auto captions (whole
+    // lines, no word times) keep each line up about 2 s after the next one starts, and spreading
+    // its words over all that put the later words too late (the owner, 2026-11-20: a d-word 35
+    // minutes into a comedy special got through, placed 0.6 s after it was said).
+    const starts = ((data && data.events) || []).filter(ev => ev.segs && ev.tStartMs != null &&
+      ev.segs.some(g => g.utf8 && g.utf8.trim())).map(ev => ev.tStartMs / 1000).sort((a, b) => a - b);
+    const nextStart = s0 => {                     // the first line starting after this one
+      let lo = 0, hi = starts.length;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (starts[mid] > s0 + 0.05) hi = mid; else lo = mid + 1; }
+      return lo < starts.length ? starts[lo] : null;
+    };
     for (const ev of (data && data.events) || []) {
       if (!ev.segs || ev.tStartMs == null) continue;
       const s0 = ev.tStartMs / 1000, dur = (ev.dDurationMs || 0) / 1000;
@@ -60,11 +71,14 @@
         const said = text.replace(HIDDEN_IN, m => "⟦" + "_".repeat(m.length - 2) + "⟧")
           .replace(NOT_SAID, m => " ".repeat(m.length));
         const total = said.length || 1;
+        // spread over the time until the next line starts (at least half its time on screen)
+        const nx = nextStart(s0);
+        const span = nx != null && nx < s0 + dur ? Math.max(nx - s0, dur * 0.5) : dur;
         let m; const re = /\S+/g;
         while ((m = re.exec(said))) {
           const hidden = /^⟦_+⟧$/.test(m[0]);
           words.push({ raw: hidden ? HIDDEN_SAID : m[0], w: hidden ? "" : CS.norm(m[0]), hidden,
-            s: s0 + dur * m.index / total, e: s0 + dur * (m.index + m[0].length) / total, timed: false });
+            s: s0 + span * m.index / total, e: s0 + span * (m.index + m[0].length) / total, timed: false });
         }
       }
       if (words.length) cues.push({ s: s0, e: s0 + dur, text, words, asr: !!asr });

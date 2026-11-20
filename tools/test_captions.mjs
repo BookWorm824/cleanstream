@@ -204,4 +204,26 @@ test("German and Italian: each line in its own language; German 'hell' (bright) 
   assert.deepEqual(own.mutes.map(m => m.text), ["so ein Quatsch,"]);
 });
 
+test("newer auto captions (whole lines that overlap): words spread until the next line starts", () => {
+  // the owner's comedy special, 34:58 (2026-11-20): each line stays up ~2 s after the next starts
+  const ev = (t, d, s) => ({ tStartMs: t, dDurationMs: d, wWinId: 1, segs: [{ utf8: s, acAsrConf: 0 }] });
+  const cues = CC.readJson3({ events: [
+    ev(2093839, 7121, "about about a basectomy. One, I didn't\nknow they shaved your balls cuz I woke"),
+    ev(2098480, 6800, "up and looked down. I like, damn, they\nfaded the [ __ ] out of my nut sack. I"),
+    ev(2103440, 6560, "must have had a black barber. He lined\nmy [ __ ] up. It was crispy as hell. I"),
+  ] }, true);
+  const p = CC.plan({ auto: cues }, kids);
+  const d = p.mutes.find(m => m.text === "damn,");
+  // its share of the line (28 of 77 letters in), over the 4.96 s until the next line starts,
+  // not the 6.8 s the line is on screen
+  assert.ok(Math.abs(d.s - (2098.48 + 4.96 * 28 / 77)) < 0.01, String(d.s));
+  assert.ok(d.from < 2100.0, String(d.from));
+  // the last line has nothing after it: its whole time on screen, as before
+  const last = cues[2].words.at(-1);
+  assert.ok(Math.abs(last.s - (2103.44 + 6.56 * 76 / 77)) < 0.01, String(last.s));
+  // a written line that ends before the next starts is spread as before
+  const wr = CC.readJson3({ events: [written(0, 2000, "one two three four"), written(3000, 2000, "five")] }, false);
+  assert.ok(Math.abs(wr[0].words[3].e - 2) < 1e-6);
+});
+
 console.log(`${passed} passed`);

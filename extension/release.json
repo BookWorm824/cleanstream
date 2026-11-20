@@ -1,11 +1,11 @@
 {
  "app": "CleanStream",
- "version": "0.4.27",
+ "version": "0.4.28",
  "sha256": {
   "LICENSE": "3550fc3914aed3d503e93a92205a6245ff7f18db56c3a030f46abc1b33449a73",
   "NOTICE-FOR-AI.md": "d4b7410948fac69bd7c84d5650c5092317be67addd8b07364cfab3966f82687b",
   "background.js": "30a4a8fc88da1da6bf3ab90694d1df294d50998f1e70c8bdfd599d408cf5b264",
-  "captions.js": "56257d890999ec9feb348d8083eeabb955951a94472f105085f36cae6edf4233",
+  "captions.js": "548cfd014e506917a9826e8e4fd21990290bfc6083d284c18f442eeef421da51",
   "content.js": "394963421e509a67651592a58869f12e169592f1c3ee820029f81756b59f3192",
   "early.js": "95569075716cef7325bbc9fc358f1483d33d33699e18273764ab1eb14c5fe909",
   "icons/128.png": "f4c6a08259be1cf283daa6741b91a58b23416a605d3ceb276aa39d742ee6c78d",
@@ -13,7 +13,7 @@
   "icons/32.png": "205f253b96bed4dd02ae49957655dc74bd6decae863d942f29e31206ab60f211",
   "icons/48.png": "bd9218aa17ef6ca8ef7a052b6bbb7db2ce73282182696e2ad39d9d82e5039c8b",
   "icons/cleanstream.ico": "9539e455904edcb6e5f1c5968caecba3b23f494aaf4bab9b589ac0cbbbfb40ab",
-  "manifest.json": "98890b803120c7e957a87653898ef1a0d4209b5efb80cbec7c99331979f17a9f",
+  "manifest.json": "d6a9a233446f2fb899b85023d481ee7372fa25782a874c09fcb41925cdae1965",
   "netflix_page.js": "105d52fded5eb9692794decb5051fd433589f01381ac7c7df8a894ada7acfb43",
   "other_page.js": "15f0e7ccb32ee1f53157989f249c51a9ec7278da8139a74c777f80168f13527d",
   "page.js": "482e083581dc957dca50d4e9570be4f7ea58571b7b4d6bd58262d43cd1babb0f",
@@ -28,6 +28,6 @@
   "site_prime.js": "e36b2eaf28a9cac9bd7500da4df00e7804e4d9172da52586ffaac902ef897ddd",
   "update.cmd": "036c9bf2994f3c0ce3d0029190668435f939ce2104858ddd4a39eca715486fa9",
   "words.js": "fe559e5eb505cafcca47c3f4c2c3ce1ea8c8d893ac4d7bc10477d57d78e5dbc3",
-  "words_data.js": "70582bd1e486aca5a196375cf4b0ca71584ed6bdaf9f106d52db239abae186f4"
+  "words_data.js": "1e75f70d51a245ed29f3e9d2c2103b8ca58896906100ea4c31fb41b15a703cd4"
  }
 }
