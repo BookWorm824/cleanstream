@@ -20,7 +20,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 EXT = ROOT / "extension"
 ADDON_ID = "cleanstream@bookworm824"
-LEAVE_OUT = {"update.cmd"}
+# the Windows updater, and the seal it checks (Mozilla signs the Firefox copy itself)
+LEAVE_OUT = {"update.cmd", "release.json", "release.sig"}
 # Firefox looks here for new versions of the signed add-on (firefox/updates.json in the repo
 # lists each signed .xpi, kept in firefox/ too)
 UPDATE_URL = "https://raw.githubusercontent.com/BookWorm824/cleanstream/main/firefox/updates.json"

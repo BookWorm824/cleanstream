@@ -1,0 +1,31 @@
+{
+ "app": "CleanStream",
+ "version": "0.4.25",
+ "sha256": {
+  "background.js": "85338098f25321d5debb2aae71b734c22e051ef83d26976049e1678804854050",
+  "captions.js": "a8dbc3a6580c5b684475f93d087cb2a58f42e9a12da2119c3c057e65cdf841c3",
+  "content.js": "d224f6d33ade8e8718b557aabb4e8eebc85f762669b9f750432cf24e597c69c7",
+  "early.js": "736648e7329b9f37ba3412dbae8aced1bb40cb5fa34781eb81192f050fa63f03",
+  "icons/128.png": "f4c6a08259be1cf283daa6741b91a58b23416a605d3ceb276aa39d742ee6c78d",
+  "icons/16.png": "1417cb9437089d9346c759c708ff97066dd37285d45eba824c343752f1938455",
+  "icons/32.png": "205f253b96bed4dd02ae49957655dc74bd6decae863d942f29e31206ab60f211",
+  "icons/48.png": "bd9218aa17ef6ca8ef7a052b6bbb7db2ce73282182696e2ad39d9d82e5039c8b",
+  "icons/cleanstream.ico": "9539e455904edcb6e5f1c5968caecba3b23f494aaf4bab9b589ac0cbbbfb40ab",
+  "manifest.json": "52e0eb19cff2e3229a96a84366c43ba185fea2ebaa0cc2dd257a2af9c83269e9",
+  "netflix_page.js": "e009055a126520631ec139622fd06a7c92e545ec14b451cfdd937ed55c9736b4",
+  "other_page.js": "23f8ec45843d0fd56419219f948f6d8f9adf2da482aba78d0dd5396b95af36eb",
+  "page.js": "ee49b6c772249968f0edb8c06cb47572308675b63cbbf8f9259f96ea33358ff6",
+  "popup.css": "24a413c2b1bf800d61b0248a3e075e47cdf365e6e8265aeb5c50e63d1abb1e4c",
+  "popup.html": "5c724b626e4af1aac7b8603cf81164fca9951b494691d2623607bc0aed1cbbb3",
+  "popup.js": "f454bff2ec1466814f9d0952aa851e178b5d3bf5172b4c691bde8f681f5f86ee",
+  "prime_page.js": "132516bdc7c98945086bed0dea39a3297559ed475157890fdca50b853df5b236",
+  "settings.js": "7a0be57bbf26720d11d72810d92aaee1eda11be1b9e82919fd75caf64bb89d76",
+  "site.js": "5ff46fa620a2bff014f8defadf38d0d0446c10721e8f9c1f6cf1b84768a391bb",
+  "site_netflix.js": "e25f5f082b6680b13d8758676a5a3562a7d1159f0f8e4be17816ab9cc3d5580b",
+  "site_other.js": "4507dd114ca20c9ccc66548b769006ea35107d8ac838b50554e65a3b620af57a",
+  "site_prime.js": "18976b497a49e4e1db00b49ea78fe2e7e8eb37c85508c40d9da7febbb2fc7bad",
+  "update.cmd": "82d381cf3387260509103876de6bce20e6ee9c549af5a13b67f92f325cb77e55",
+  "words.js": "f2e67de38b933df84dc54337ddad55198fb389dff7cb74258b3cff44e17820ed",
+  "words_data.js": "fef3e25227e9ec79bf8fc2213c1cffa01dc4882956a458749cc3e35fe2a727f8"
+ }
+}
