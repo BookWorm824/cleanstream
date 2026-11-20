@@ -120,9 +120,10 @@
     set("video-src", {
       auto: "Going by YouTube's automatic captions (each word's own time).",
       both: "Going by the video's written captions, timed by YouTube's automatic ones.",
-      written: "Going by the video's written captions only, so word times are guessed.",
-      subtitles: `Going by ${site}'s English subtitles (a line at a time, so each word's moment is ` +
-        `guessed and muted a little wider).`,
+      // no word about guessing (the owner, 2026-11-19: keep "going by ...'s English subtitles",
+      // "the other part about guessing lets get rid of")
+      written: "Going by the video's written captions only.",
+      subtitles: `Going by ${site}'s English subtitles.`,
     }[r.source] || "");
     // CleanStream's own clock for the title, to compare with the site's (not YouTube: its clock
     // is the video's own)
@@ -131,7 +132,7 @@
     if (showClock) set("video-clock", r.ad ? `An ad is playing: CleanStream isn't muting it.`
       : `CleanStream's clock: ${clock(r.clock)}. ${site}'s own clock should show the same time.`);
     const items = [
-      ...r.mutes.map(m => ({ t: m.s, w: m.text, why: m.why + (m.guess ? " (timing guessed)" : ""), cls: "" })),
+      ...r.mutes.map(m => ({ t: m.s, w: m.text, why: m.why, cls: "" })),
       ...r.left.map(m => ({ t: m.s, w: m.text, why: "left alone: " + m.why, cls: "left" })),
     ].sort((a, b) => a.t - b.t);
     $("found-box").hidden = !items.length;
