@@ -149,6 +149,11 @@ try {
   console.log("YouTube:", status, JSON.stringify(log));
   // the sound is off from the first moment until the captions are in, then off for "damn" only
   if (!/1 word/.test(status || "") || !log.length || log[0][2] !== true || !near(log, "yt", 8.1, 8.9)) problems.push("YouTube muting");
+  // one copy only: the background check (0.4.31, CleanStream started where it isn't running) sees
+  // the copy Firefox started, and doesn't start a second
+  const copies = await p.eval(`document.querySelectorAll("#cleanstream-status").length`);
+  console.log("YouTube: CleanStream status lines on the page:", copies);
+  if (copies !== 1) problems.push("YouTube: " + copies + " copies");
 
   // Spanish: Netflix playing in Spanish picks the Spanish subtitles; Prime with only Spanish ones
   s = await serve("127.0.0.3", netflixEsPage, u => u.startsWith("/subs/es-cc") ? ["application/ttml+xml", ttmlEs]
@@ -170,6 +175,8 @@ try {
   log = await p.eval("log"); status = await p.eval(STATUS);
   console.log("Prime in Spanish:", status, JSON.stringify(log));
   if (!/3 words/.test(status || "") || !inSpan(log, "title", 5.8, 7.6) || !inSpan(log, "title", 10, 12.5)) problems.push("Prime Spanish");
+  const primeCopies = await p.eval(`document.querySelectorAll("#cleanstream-status").length`);
+  if (primeCopies !== 1) problems.push("Prime: " + primeCopies + " copies");
 
   // Hulu and the others: subtitles read in pieces, shown by the player inside a closed-off part of
   // the page (as Disney+): hidden on screen, the words muted (0.4.21)

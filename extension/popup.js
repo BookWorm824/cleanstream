@@ -86,6 +86,7 @@
   // ---------- what was found in the video open in this tab ----------
   const set = (id, text) => { const el = $(id); if (el.textContent !== text) el.textContent = text; };
   let foundKey = null;
+  let noAnswer = [null, 0];            // [tab, how many times in a row its page didn't answer]
   async function showVideo() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const url = tab && tab.url || "";
@@ -103,7 +104,22 @@
     }
     let r = null;
     try { r = await chrome.tabs.sendMessage(tab.id, { type: "state" }); } catch (e) { /* not loaded yet */ }
-    if (!r) return only(`Reload the ${site} page to start CleanStream on it.`);
+    // no answer: read it straight from the page, and if CleanStream isn't running there, start it
+    // (the owner, 2026-11-20: it said to refresh "even though i loaded it for the first time")
+    if (!r) {
+      try {
+        const [got] = await chrome.scripting.executeScript({ target: { tabId: tab.id },
+          func: () => (globalThis.__cleanstreamReply ? globalThis.__cleanstreamReply() : null) });
+        r = got && got.result;
+      } catch (e) { /* a page it can't reach */ }
+    }
+    if (!r) {
+      noAnswer = noAnswer[0] === tab.id ? [tab.id, noAnswer[1] + 1] : [tab.id, 1];
+      chrome.runtime.sendMessage({ type: "start-here", tabId: tab.id }).catch(() => {});
+      return only(noAnswer[1] <= 3 ? `Starting CleanStream on this ${site} page…`
+        : `Reload the ${site} page to start CleanStream on it.`);
+    }
+    noAnswer = [null, 0];
     if (!r.video) return only("Start a video to see what CleanStream found.");
     const say = site !== "YouTube" ? {
       waiting: "Getting this title's subtitles…",

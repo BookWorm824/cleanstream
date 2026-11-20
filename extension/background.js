@@ -24,6 +24,20 @@ chrome.alarms.onAlarm.addListener(a => { if (a.name === "check-files") checkFile
 // needed a refresh after updating). So the new copy is started in them now, in the manifest's
 // order; it tells the old one to stop. The page scripts (world MAIN) are only started where
 // they aren't there yet: they need nothing from CleanStream, so the old ones go on working.
+/** The manifest's script groups started in one tab, in order (takeover: over an old copy). */
+async function startIn(tabId, groups, takeover) {
+  if (takeover) {                                  // the new copy knows it's taking over (content.js)
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, func: () => { window.__csTakeover = true; } });
+    } catch (e) { return; }
+  }
+  for (const cs of groups) {
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, files: cs.js,
+        world: cs.world === "MAIN" ? "MAIN" : "ISOLATED" });
+    } catch (e) { return; }                       // a page that can't take it: left as it was
+  }
+}
 async function startInOpenTabs() {
   if (!chrome.scripting || !chrome.tabs) return;
   const perTab = new Map();                       // tab -> the manifest's script groups for it
@@ -36,17 +50,56 @@ async function startInOpenTabs() {
       perTab.get(tab.id).push(cs);
     }
   }
-  await Promise.all([...perTab].map(async ([tabId, groups]) => {
-    try {                                          // the new copy knows it's taking over (content.js)
-      await chrome.scripting.executeScript({ target: { tabId }, func: () => { window.__csTakeover = true; } });
-    } catch (e) { return; }
-    for (const cs of groups) {
-      try {
-        await chrome.scripting.executeScript({ target: { tabId }, files: cs.js,
-          world: cs.world === "MAIN" ? "MAIN" : "ISOLATED" });
-      } catch (e) { return; }                     // a page that can't take it: left as it was
-    }
-  }));
+  await Promise.all([...perTab].map(([tabId, groups]) => startIn(tabId, groups, true)));
+}
+
+// A page CleanStream should be on but isn't (the owner, 2026-11-20: "sometimes when i click on a
+// video it doesn't work and says refresh even though i loaded it for the first time. i think
+// some people might see it not working the first time and think it doesn't work"): each page
+// is looked at once it has loaded, and after moving within the site, and CleanStream is started
+// in it if it isn't running there. The settings window asks for the same when its page doesn't
+// answer. (A site that moves to a video without loading a new page, from an address where
+// CleanStream doesn't start, is caught this way too.)
+// (a manifest address pattern as a regex: * is anything, and any port, as the browser has them)
+const globRe = p => {
+  const glob = x => x.split("*").map(y => y.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+  const m = /^([^:]+:\/\/[^/]+)(\/.*)$/.exec(p);
+  return new RegExp("^" + (m ? glob(m[1]) + "(?::\\d+)?" + glob(m[2]) : glob(p)) + "$");
+};
+const GROUPS = (chrome.runtime.getManifest().content_scripts || []).map(cs => ({ cs, res: cs.matches.map(globRe) }));
+const groupsFor = url => GROUPS.filter(g => g.res.some(r => r.test(String(url || "").split("#")[0]))).map(g => g.cs);
+/** Is a working copy in this tab's page (read from its own world, not by a message)? null: a
+ *  page CleanStream can't reach. */
+async function running(tabId) {
+  try {
+    const [r] = await chrome.scripting.executeScript({ target: { tabId }, func: () => {
+      const c = window.__cleanstream || window.__cleanstreamSite;
+      try { return !!(c && c.alive && c.alive()); } catch (e) { return false; }
+    } });
+    return !!(r && r.result);
+  } catch (e) { return null; }
+}
+const starting = new Set();
+async function makeSureRunning(tabId) {
+  if (!chrome.scripting || starting.has(tabId)) return false;
+  let tab;
+  try { tab = await chrome.tabs.get(tabId); } catch (e) { return false; }
+  const groups = groupsFor(tab.url);
+  if (!groups.length || tab.discarded) return false;
+  starting.add(tabId);
+  try {
+    const now = await running(tabId);
+    if (now !== false) return !!now;              // running already, or a page it can't reach
+    await startIn(tabId, groups, false);
+    return !!(await running(tabId));
+  } finally { starting.delete(tabId); }
+}
+if (chrome.tabs && chrome.tabs.onUpdated) {
+  chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+    // loaded (the manifest's copy has started by now, if it was going to), or moved within the site
+    if (info.status === "complete" || (info.url && tab.status === "complete"))
+      setTimeout(() => makeSureRunning(tabId), 1500);
+  });
 }
 chrome.runtime.onInstalled.addListener(d => {
   if (d.reason === "update" || d.reason === "install") startInOpenTabs();
@@ -68,8 +121,12 @@ chrome.runtime.onInstalled.addListener(async () => {
   } catch (e) { /* nothing to clear */ }
 });
 
-chrome.runtime.onMessage.addListener((msg, sender) => {
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg.type === "check-files") { checkFiles(); return; }
+  if (msg.type === "start-here" && msg.tabId != null) {     // the settings window: no answer from the page
+    makeSureRunning(msg.tabId).then(ok => reply(ok), () => reply(false));
+    return true;
+  }
   if (msg.type === "found" && sender.tab) {
     chrome.action.setBadgeBackgroundColor({ color: "#2F6F62", tabId: sender.tab.id });
     chrome.action.setBadgeText({ text: msg.count ? String(msg.count) : "", tabId: sender.tab.id });

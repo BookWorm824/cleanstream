@@ -488,17 +488,22 @@
   });
 
   // ---------- the settings window asks what was found ----------
-  chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-    if (msg.type !== "state" || dead) return;
+  // (also read straight from this world by the settings window when a message gets no answer)
+  function stateNow() {
     const v = videoEl();
-    reply({ video: st.video, title: document.title, captions: st.captions,
+    return { video: st.video, title: document.title, captions: st.captions,
       status: st.status, source: st.plan && "subtitles", now: v ? titleTime(v).t : 0,
       // where CleanStream thinks the title is, to compare with the site's own clock (Prime's ads
       // can move the video's clock; the owner, 2026-11-19: listed words played)
       clock: v ? titleTime(v).t : null, ad: v ? isAd(v) : false,
       mutes: st.plan ? st.plan.mutes.map(m => ({ s: m.s, text: CS.mask(m.text), why: m.why, guess: false })) : [],
       left: st.plan ? st.plan.left.map(m => ({ s: m.s, text: m.text, why: m.why })) : [],
-      site: SITE.name });
+      site: SITE.name };
+  }
+  globalThis.__cleanstreamReply = () => (dead ? null : stateNow());
+  chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+    if (msg.type !== "state" || dead) return;
+    reply(stateNow());
   });
 
   (async () => {
