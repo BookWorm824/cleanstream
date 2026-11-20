@@ -88,9 +88,20 @@ async function makeSureRunning(tabId) {
   if (!groups.length || tab.discarded) return false;
   starting.add(tabId);
   try {
-    const now = await running(tabId);
+    let now = await running(tabId);
+    if (now === false) {                          // the page's own copy may still be starting
+      await new Promise(r => setTimeout(r, 2000));
+      now = await running(tabId);
+    }
     if (now !== false) return !!now;              // running already, or a page it can't reach
-    await startIn(tabId, groups, false);
+    // not early.js (it keeps a video quiet from its very first moment; started late, over a
+    // working copy, it kept the sound off for good: the owner, 2026-11-20, 0.4.31), and the copy
+    // knows it came late (__csLate: it doesn't hold the sound off while it waits)
+    const late = groups.filter(cs => !(cs.run_at === "document_start" && cs.world !== "MAIN"));
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, func: () => { window.__csLate = true; } });
+    } catch (e) { return false; }
+    await startIn(tabId, late, false);
     return !!(await running(tabId));
   } finally { starting.delete(tabId); }
 }

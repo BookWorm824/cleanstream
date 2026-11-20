@@ -13,6 +13,11 @@
   // An update reloads CleanStream: the copy already in this page is cut off from it, and
   // background.js starts the new one here. A cut-off copy stops when a new one says so (0.4.20;
   // the owner, 2026-11-19: Shorts needed a refresh after updating).
+  // started late by background.js on a page where CleanStream wasn't running (__csLate, 0.4.32):
+  // it never holds the sound off while it waits, since it may have come too late to get the
+  // subtitles at all (the owner, 2026-11-20, 0.4.31: "prime is muted and wont let me hear it")
+  const lateStart = !!window.__csLate;
+  window.__csLate = false;
   const RT = chrome.runtime;
   const alive = () => { try { return !!(RT && RT.id); } catch (e) { return false; } };
   const prior = window.__cleanstreamSite;
@@ -128,6 +133,7 @@
   const HOLD_MOST = SITE.holdMost || 30;
   let holdTimer = null;
   function hold(on) {
+    if (lateStart) on = false;
     st.holding = on;
     clearTimeout(holdTimer);
     if (on) holdTimer = setTimeout(() => {
@@ -433,7 +439,7 @@
     unmute(); hold(false);
     if (!id || !st.settings || !st.settings.on) return;
     hold(true);
-    say("CleanStream is getting this title's subtitles (the sound is off until it's ready)…", 0);
+    say(lateStart ? "CleanStream is getting this title's subtitles…" : "CleanStream is getting this title's subtitles (the sound is off until it's ready)…", 0);
     if (SITE.ask) window.postMessage({ [TAG]: SITE.contentTag, type: "get-subs", title: id }, "*");
   }
   let pending = null;            // subtitles that came before the title was known (Prime)

@@ -9,6 +9,11 @@
 // Scovel video). Also on moving to another video without reloading the page.
 (function () {
   if (window.top !== window) return;
+  // a working copy of content.js is here already (started again by background.js, 0.4.32): this
+  // one would keep the sound off with nothing to turn it on again (the owner, 2026-11-20, 0.4.31:
+  // "the volume is turned down and when i try to change it makes a garble noise but wont go up")
+  const cs = window.__cleanstream;
+  try { if (cs && cs.alive && cs.alive()) return; } catch (e) { /* cut off: carry on */ }
   let on = true;
   // cut off by an update, and a new copy started here: this one stops (0.4.20)
   const RT = chrome.runtime;
@@ -18,6 +23,9 @@
     stopped = true;
   });
   chrome.storage.sync.get({ on: true }).then(s => { on = s.on !== false; }, () => {});
+  try {                                             // CleanStream turned off: hands off at once
+    chrome.storage.onChanged.addListener((ch, area) => { if (area === "sync" && ch.on) on = ch.on.newValue !== false; });
+  } catch (e) { /* cut off */ }
   globalThis.__csArmed = true;                      // content.js disarms it when it takes over
   globalThis.__csEarlyMuted = false;                // ... and adopts this mute (to undo it later)
   // the regular player and the Shorts one (2026-11-19)

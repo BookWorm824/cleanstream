@@ -56,6 +56,7 @@
       document.querySelector("ytd-reel-video-renderer[is-active] .html5-video-player")
     : document.getElementById("movie_player");
   const wait = ms => new Promise(r => setTimeout(r, ms));
+  let queue = Promise.resolve();               // caption requests, one after another
 
   // hide captions on screen while CleanStream switches tracks, so nothing flashes up
   function hideCaptions(on) {
@@ -192,7 +193,10 @@
   window.addEventListener("message", e => {
     const d = e.data;
     if (e.source !== window || !d || d[TAG] !== "content") return;
-    if (d.type === "get-captions") getCaptions(d.video);
+    // one at a time: a request while another was switching tracks took the switched-on captions
+    // for the viewer's own, and put them back on afterwards (the owner, 2026-11-20: "it turning
+    // the cc on automatically")
+    if (d.type === "get-captions") queue = queue.then(() => getCaptions(d.video)).catch(() => {});
     if (d.type === "seek") { const p = player(); if (p && p.seekTo) p.seekTo(d.to, true); }
   });
   said("ready", {});

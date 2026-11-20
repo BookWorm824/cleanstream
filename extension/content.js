@@ -11,6 +11,11 @@
   // An update reloads CleanStream: the copy already in this page is cut off from it, and
   // background.js starts the new one here. A cut-off copy stops when a new one says so (0.4.20;
   // the owner, 2026-11-19: Shorts needed a refresh after updating).
+  // started late by background.js on a page where CleanStream wasn't running (__csLate, 0.4.32):
+  // it never holds the sound off while it waits, since it may have come too late to get the
+  // subtitles at all (the owner, 2026-11-20, 0.4.31: "prime is muted and wont let me hear it")
+  const lateStart = !!window.__csLate;
+  window.__csLate = false;
   const RT = chrome.runtime;
   const alive = () => { try { return !!(RT && RT.id); } catch (e) { return false; } };
   const prior = window.__cleanstream;
@@ -104,6 +109,7 @@
   const HOLD_MOST = 25;                       // seconds: give up waiting and let the sound on
   let holdTimer = null;
   function hold(on) {
+    if (lateStart) on = false;
     st.holding = on;
     clearTimeout(holdTimer);
     if (on) holdTimer = setTimeout(() => {
@@ -181,7 +187,7 @@
     hold(false);
     if (!st.settings || !st.settings.on) { unmute(); return; }
     hold(true);
-    say("CleanStream is getting this video's captions (the sound is off until it's ready)…", 0);
+    say(lateStart ? "CleanStream is getting this video's captions…" : "CleanStream is getting this video's captions (the sound is off until it's ready)…", 0);
     // the player must have this video loaded before its captions can be asked for, and not be
     // playing an ad: asked during an ad, the answer was the ad's (no captions)
     let tries = 0, adFirst = false;
@@ -197,7 +203,7 @@
       }
       if (adFirst) {                            // the ad just ended: let the video load first
         adFirst = false;
-        say("CleanStream is getting this video's captions (the sound is off until it's ready)…", 0);
+        say(lateStart ? "CleanStream is getting this video's captions…" : "CleanStream is getting this video's captions (the sound is off until it's ready)…", 0);
         setTimeout(ask, 1000);
         return;
       }
