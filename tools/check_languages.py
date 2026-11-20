@@ -39,8 +39,9 @@ SENTENCES = [
     "Che cazzo fai?", "Vai all'inferno", "Il cavallo di Troia", "Figlio di troia",
     "Porca miseria", "dell'idiota", "Quell'idiota di Marco", "Dio mio, che merda",
 ]
-GROUP_SETS = [["strong", "moderate", "mild", "deity", "minced", "samesex", "rude"],
-              ["strong", "moderate"], ["mild", "deity"], ["minced", "rude"], ["samesex"]]
+GROUP_SETS = [["strong", "moderate", "slurs", "mild", "deity", "minced", "samesex", "rude",
+               "sexwords", "crudewords"],
+              ["strong", "moderate"], ["slurs"], ["mild", "deity"], ["minced", "rude"], ["samesex"]]
 MINE = [["grafi"], ["que", "rollo"], ["so", "ein", "quatsch"]]
 # a line, and the language it's told as (None: nothing to go by)
 LANGS = [("What the hell are you doing?", "en"), ("¿Qué haces aquí?", "es"),

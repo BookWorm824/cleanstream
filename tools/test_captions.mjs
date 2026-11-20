@@ -226,4 +226,34 @@ test("newer auto captions (whole lines that overlap): words spread until the nex
   assert.ok(Math.abs(wr[0].words[3].e - 2) < 1e-6);
 });
 
+// CleanView 1.18.150, the Swearing list sorted by type (the owner: "organize better by type",
+// "Yes, all of it"): slurs a box of their own, sexual words with Sexual words, "balls" slang
+// and the poop word with Crude humor, "skeevy" with the rude words
+test("the Swearing list sorted by type: each word goes with its own box", () => {
+  const said = text => CC.readJson3({ events: [asr(1000, text.split(" "))] }, true);
+  const muted = (text, ticks) => CC.plan({ auto: said(text) }, ticks).mutes.map(m => [m.text, m.cat]);
+  const only = keys => Object.fromEntries(S.FILTERS.map(([k]) => [k, keys.includes(k)]));
+  assert.ok(S.FILTERS.some(([k]) => k === "slurs"));
+  for (const p of S.PROFILES) assert.equal(S.PRESETS[p[0]].slurs, true);
+  // slurs: with their own box, not with Swearing
+  assert.deepEqual(muted("you lyin spic", only(["slurs"])), [["spic", "slurs"]]);
+  assert.deepEqual(muted("you lyin spic", only(["swearing"])), []);
+  assert.deepEqual(muted("get out you faggot", only(["samesexwords"])), []);
+  assert.deepEqual(muted("get out you faggot", adults), [["faggot", "slurs"]]);
+  // sexual words: with Sexual words
+  assert.deepEqual(muted("she is such a slut", only(["swearing"])), []);
+  assert.deepEqual(muted("she is such a slut", only(["sexref"])), [["slut", "sexwords"]]);
+  // crude: "balls" slang and the poop word, muted for Kids, not for Adults (Crude unticked)
+  assert.deepEqual(muted("you better grow some balls", kids).map(m => m[1]), ["crudewords"]);
+  assert.deepEqual(muted("you better grow some balls", adults), []);
+  assert.deepEqual(muted("step in a turd", adults), []);
+  assert.deepEqual(muted("step in a turd", kids), [["turd", "crudewords"]]);
+  // "what the eff" stays Swearing; "skeevy" is a rude word now
+  assert.deepEqual(muted("what the eff man", only(["swearing"])).map(m => m[1]), ["moderate"]);
+  assert.deepEqual(muted("that guy is skeevy", only(["swearing"])), []);
+  assert.deepEqual(muted("that guy is skeevy", only(["rude"])), [["skeevy", "rude"]]);
+  // the real swear words are still Swearing for every age
+  assert.deepEqual(muted("well shit", adults), [["shit", "moderate"]]);
+});
+
 console.log(`${passed} passed`);

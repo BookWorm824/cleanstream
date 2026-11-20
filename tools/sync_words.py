@@ -81,6 +81,11 @@ def build():
         "from": "CleanView " + json.loads((CLEANVIEW / "version.json").read_text())["version"],
         "STRONG": cl.STRONG, "MODERATE": cl.MODERATE, "MILD": cl.MILD, "MINCED": cl.MINCED,
         "DEITY_WORDS": cl.DEITY_WORDS, "SAMESEX_WORDS": cl.SAMESEX_WORDS, "RUDE": cl.RUDE,
+        # CleanView 1.18.150, the Swearing list sorted by type (the owner: "organize better by
+        # type", "Yes, all of it"): slurs a box of their own, sexual words muted with "sexref",
+        # crude words with "crude", and the box each BODY_SLANG phrase is muted with
+        "SLURS": cl.SLURS, "SEX_WORDS": cl.SEX_WORDS, "CRUDE_WORDS": cl.CRUDE_WORDS,
+        "SLANG_CAT": cl.SLANG_CAT, "FILTER_WORDS": cl.FILTER_WORDS,
         "NEVER_FINE": pats(cl.NEVER_FINE), "ALWAYS_REMOVED": pats(cl.ALWAYS_REMOVED),
         "DEITY_PHRASES": [list(p) for p in cl.DEITY_PHRASES],
         "CRUDE_PHRASES": [list(p) for p in cl.CRUDE_PHRASES],

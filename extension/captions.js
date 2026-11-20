@@ -145,6 +145,7 @@
   // ---------- finding what to mute ----------
   const LABEL = { strong: "Swearing", moderate: "Swearing", mild: "Mild word", deity: "God's name",
     minced: "Soft substitute", samesex: "Same-sex word", rude: "Rude word", mine: "Your word",
+    slurs: "Slur", sexwords: "Sexual word", crudewords: "Crude humor",
     sexref: "Sexual reference", casual: "Sleeping around", crude: "Crude humor",
     forensic: "Coroner and crime talk", drugtalk: "Drug talk" };
 

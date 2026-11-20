@@ -10,6 +10,9 @@
   const FILTERS = [
     // [key, label, group]
     ["swearing", "Swearing (f-word, s-word, b-word…)", "words"],
+    // CleanView 1.18.150's box of its own (the owner: "organize better by type", "Yes, all of
+    // it"): ticked for every age, as in CleanView
+    ["slurs", "Slurs (hateful names for groups of people)", "words"],
     ["mild", "Mild words (damn, hell, crap)", "words"],
     ["deity", "God's name used as a swear", "words"],
     ["minced", "Soft substitutes (gosh, heck, freaking)", "words"],

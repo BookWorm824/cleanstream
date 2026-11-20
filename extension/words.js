@@ -16,11 +16,15 @@
 
   const CATS = { strong: full(W.STRONG), moderate: full(W.MODERATE), mild: full(W.MILD),
     minced: full(W.MINCED), deity: full(W.DEITY_WORDS), samesex: full(W.SAMESEX_WORDS),
-    rude: full(W.RUDE) };
+    rude: full(W.RUDE),
+    // CleanView 1.18.150 (the owner: "organize better by type"): slurs a box of their own;
+    // sexual and crude words muted with the "sexref" and "crude" ticks (FILTER_WORDS)
+    slurs: full(W.SLURS), sexwords: full(W.SEX_WORDS), crudewords: full(W.CRUDE_WORDS) };
   const SEX3 = full(W.SEX_TERMS_3);
   const NEVER_FINE = full(W.NEVER_FINE), ALWAYS_REMOVED = full(W.ALWAYS_REMOVED);
   const BODY_SLANG = start(W.BODY_SLANG), MILD_SLANG = start(W.MILD_SLANG),
     MINCED_SLANG = start(W.MINCED_SLANG);
+  const SLANG_CAT = W.SLANG_CAT, FILTER_WORDS = W.FILTER_WORDS;
   const REVERENT_BEFORE = set(W.REVERENT_BEFORE), REVERENT_NEXT = set(W.REVERENT_NEXT),
     REVERENT_IS = set(W.REVERENT_IS);
   const INNOCENT_NEXT = setsOf(W.INNOCENT_NEXT), INNOCENT_PREV = setsOf(W.INNOCENT_PREV);
@@ -219,6 +223,18 @@
     }
     return 0;
   }
+  /** [how many words, its box] of the BODY_SLANG phrase at words[i] whose box is in cats;
+   *  [0, null] if none (cvcore.slang_box). */
+  function slangBox(words, i, cats) {
+    const text = words.slice(i, i + 8).join(" ");
+    for (let k = 0; k < BODY_SLANG.length; k++) {
+      if (!cats.includes(SLANG_CAT[k])) continue;
+      const m = BODY_SLANG[k].exec(text);
+      if (m && (m[0].length === text.length || text[m[0].length] === " "))
+        return [m[0].split(/\s+/).filter(Boolean).length, SLANG_CAT[k]];
+    }
+    return [0, null];
+  }
   function gayHappy(words, i) {
     const before = i >= 2 && words[i - 1] === "and" && GAY_HAPPY.has(words[i - 2]);
     const after = i + 2 < words.length && words[i + 1] === "and" && GAY_HAPPY.has(words[i + 2]);
@@ -260,8 +276,8 @@
         if (ph && ((ph[ph.length - 1] === "knows" && KNOWS_NOT_OATH.has(nxt)) || prayer(words, i, ph))) ph = null;
         if (ph) { take(ph.length, "deity"); continue; }
       }
-      let k = has("moderate") ? bodySlang(words, i) : 0;
-      if (k) { take(k, "moderate"); continue; }
+      let [k, box] = slangBox(words, i, cats);
+      if (k) { take(k, box); continue; }
       k = has("minced") ? bodySlang(words, i, MINCED_SLANG) : 0;
       if (k) { take(k, "minced"); continue; }
       k = (has("mild") || has("moderate")) ? bodySlang(words, i, MILD_SLANG) : 0;
@@ -432,9 +448,11 @@
   const otherLangs = () => Object.keys(L);
   const langName = code => LANG_NAMES[code] || code;
 
-  // The tick boxes for words -> the word lists' categories (cvcore.GROUPS)
+  // The tick boxes for words -> the word lists' categories (cvcore.GROUPS), and the sexual and
+  // crude words with the "sexref" and "crude" ticks (cvcore.cats_for, CleanView 1.18.150)
   const GROUPS = W.GROUPS;
-  const catsFor = ticks => Object.entries(GROUPS).filter(([g]) => ticks[g]).flatMap(([, c]) => c);
+  const catsFor = ticks => [...Object.entries(GROUPS).filter(([g]) => ticks[g]).flatMap(([, c]) => c),
+    ...Object.entries(FILTER_WORDS).filter(([k]) => ticks[k]).map(([, c]) => c)];
 
   globalThis.CSWords = { norm, findLanguage, listedWord, neverFine, alwaysRemoved, mask, GROUPS,
     catsFor, unbleep, unabbreviate, base, from: W.from, esNorm, esFindLanguage, lineLang,

@@ -29,7 +29,8 @@ TEST_FILES = ["test_words.py", "test_blasted.py", "test_lucy_lessons.py",
               "test_hard_rule.py", "test_castle_s2e1_words.py", "test_aladdin.py",
               "test_black_beauty_words.py", "test_classics_words.py", "test_cleanlisten_words.py",
               "test_forest_gump.py", "test_poi_s1e2.py", "test_poi_s1e3.py", "test_screwed_face.py",
-              "test_christy.py", "test_criminal_minds.py", "test_classics_recheck.py"]
+              "test_christy.py", "test_criminal_minds.py", "test_classics_recheck.py",
+              "test_swearing_sorted.py"]
 SENTENCES = [
     "Well that was a damn good idea", "Oh my God, shut up you idiot", "Shut it down now",
     "Screw you, I'm leaving", "What the hell is that", "Blast it all", "you blasted fool",
@@ -61,8 +62,16 @@ SENTENCES = [
     "Screw the government.", "Screw the Columbians", "screw the lid on", "screw the bulb back in",
     "screw the two pieces together",
 ]
-GROUP_SETS = [["strong", "moderate", "mild", "deity", "minced", "samesex", "rude"],
-              ["strong", "moderate"], ["mild", "deity"], ["minced", "rude"], ["samesex"]]
+# (slurs, sexual and crude words since CleanView 1.18.150, the Swearing list sorted by type)
+GROUP_SETS = [["strong", "moderate", "slurs", "mild", "deity", "minced", "samesex", "rude",
+               "sexwords", "crudewords"],
+              ["strong", "moderate"], ["slurs"], ["sexwords", "crudewords"], ["crudewords"],
+              ["mild", "deity"], ["minced", "rude"], ["samesex"]]
+# ticks -> word lists (cvcore.cats_for = CSWords.catsFor)
+TICKS = [{"swearing": True}, {"slurs": True}, {"sexref": True, "crude": True},
+         {"swearing": True, "slurs": True, "mild": True, "deity": True, "minced": True,
+          "samesexwords": True, "rude": True, "sexref": True, "casual": True, "crude": True},
+         {"crude": True, "rude": True}, {}]
 MINE = [["grafi"], ["big", "fat", "liar"]]
 JS = r"""
 require(process.argv[2] + "/words_data.js"); require(process.argv[2] + "/words.js");
@@ -73,7 +82,7 @@ for (const cats of input.groups) for (const t of input.cases) {
   const words = t.split(/\s+/).filter(Boolean).map(W.norm);
   out.push([words, W.findLanguage(words, cats, input.mine)]);
 }
-console.log(JSON.stringify(out));
+console.log(JSON.stringify({ out, cats: input.ticks.map(W.catsFor) }));
 """
 
 
@@ -95,12 +104,18 @@ def main():
     script.write_text(JS, encoding="utf-8")
     out = subprocess.run(["node", str(script), str(EXT)], capture_output=True, text=True,
                          encoding="utf-8", input=json.dumps({"cases": cases, "groups": GROUP_SETS,
-                                                            "mine": MINE}))
+                                                            "mine": MINE, "ticks": TICKS}))
     if out.returncode:
         print(out.stderr)
         return 1
-    js = json.loads(out.stdout)
+    got = json.loads(out.stdout)
+    js = got["out"]
     bad, k = 0, 0
+    for ticks, cats in zip(TICKS, got["cats"]):
+        groups = [g for g in cl.GROUPS if ticks.get(g)]
+        if cats != cl.cats_for(groups, ticks):
+            bad += 1
+            print(f"DIFFERENT word lists for {ticks}: CleanView {cl.cats_for(groups, ticks)}, CleanStream {cats}")
     mine = [tuple(m) for m in MINE]
     for cats in GROUP_SETS:
         for text in cases:
