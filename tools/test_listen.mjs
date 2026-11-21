@@ -67,9 +67,11 @@ const events = LINES.map(line => {
   wWinId: 1, segs: [{ utf8: l.text }] }));
 const CAPS = JSON.stringify({ events });
 
-const YT = `<!doctype html><title>Stand-in</title><body><div id="movie_player"><video class="html5-main-video" src="/v.mp4"></video></div>
+const YT = `<!doctype html><title>Stand-in</title><body><div id="movie_player"><video class="html5-main-video" src="/v.mp4" autoplay></video></div>
 <script>
 const p = document.getElementById("movie_player"), v = p.querySelector("video");
+window.evlog = []; const t00 = performance.now();
+for (const ev of ["play", "pause", "playing"]) v.addEventListener(ev, () => evlog.push([ev, +((performance.now() - t00) / 1000).toFixed(2), +v.currentTime.toFixed(2)]));
 let cur = {};
 const tracks = [{ languageCode: "en", kind: "asr", vssId: "a.en", baseUrl: "/api/timedtext?v=abcdefghijk&lang=en&kind=asr" }];
 p.getPlayerResponse = () => ({ captions: { playerCaptionsTracklistRenderer: { captionTracks: tracks } }, videoDetails: { videoId: "abcdefghijk" } });
@@ -106,6 +108,13 @@ try {
   check(!!world, "CleanStream is running on the page");
   const ok = await page.waitFor(`globalThis.__cleanstreamState && globalThis.__cleanstreamState.captions === "ok"`, 20000, 250, world);
   check(!!ok, "the captions were read");
+  // the start: the video holds still while the captions come, then plays (0.4.38; the owner: "could
+  // you delay the start of the video by 2 seconds while gerring the captions")
+  await sleep(1500);
+  const ev = await page.eval(`evlog`);
+  console.log("  start:", JSON.stringify(ev));
+  const paused = ev.find(e => e[0] === "pause"), resumed = paused && ev.find(e => e[0] === "play" && e[1] > paused[1]);
+  check(!!paused && !!resumed && resumed[1] - paused[1] < 3.2 && paused[2] < 1, "the video waited at the start while the captions came, then played");
   const before = await page.eval(`(globalThis.__cleanstreamState.plan.mutes.find(m => m.text === "[ __ ]") || {})`, { contextId: world });
   await page.eval(`(() => { const v = document.querySelector("video"); v.currentTime = 0; v.play(); return true; })()`);
   await page.waitFor(`globalThis.__cleanstreamReply && globalThis.__cleanstreamReply().listen.state === "on"`, 15000, 250, world);

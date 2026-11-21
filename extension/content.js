@@ -149,7 +149,7 @@
     dead = true;
     timers.forEach(clearInterval);
     observer.disconnect();
-    clearTimeout(holdTimer); clearTimeout(pillTimer);
+    clearTimeout(holdTimer); clearTimeout(pillTimer); endPause();
     if (st.weMuted) { const v = videoEl(); if (v) v.muted = false; st.weMuted = false; }
     st.holding = false; st.ranges = [];
     if (pill) pill.remove();
@@ -171,6 +171,7 @@
       return;
     }
     hold(false);
+    endPause();
     if (d.error) {
       st.captions = "error";
       say("CleanStream couldn't read this video's captions, so bad language won't be muted. " +
@@ -200,7 +201,40 @@
       : "CleanStream: nothing to mute in this video's captions.");
   }
 
+  // ---------- a short pause at the start (0.4.38) ----------
+  // The video waits, still, while its captions come (at most PAUSE_MOST seconds), instead of playing
+  // with the sound off (the owner, 2026-11-21: "i dont think people would like the silence",
+  // "could you delay the start of the video by 2 seconds while gerring the captions", "if the video
+  // isnt playing not hearing is ok"). If they take longer, it plays with the sound held off as
+  // before. Not during ads, and only a video that was starting to play is played again.
+  const PAUSE_MOST = 3;
+  const pause = { on: false, did: false, v: null, timer: null, keep: null };
+  function startPause() {
+    const v = videoEl();
+    // (not in Firefox: it won't let a video CleanStream paused play again without a click on the page)
+    if (dead || lateStart || pause.on || !v || adShowing() || /Firefox\//.test(navigator.userAgent)) return;
+    Object.assign(pause, { on: true, did: false, v });
+    pause.keep = () => { if (pause.on && !v.paused && !adShowing()) { v.pause(); pause.did = true; } };
+    v.addEventListener("playing", pause.keep);
+    v.addEventListener("play", pause.keep);
+    pause.keep();
+    pause.timer = setTimeout(endPause, PAUSE_MOST * 1000);
+  }
+  function endPause() {
+    if (!pause.on) return;
+    pause.on = false;
+    clearTimeout(pause.timer);
+    const v = pause.v;
+    pause.v = null;
+    if (!v) return;
+    v.removeEventListener("playing", pause.keep);
+    v.removeEventListener("play", pause.keep);
+    // (if the browser won't let it play again without a click, she's told)
+    if (pause.did && v.paused && v === videoEl() && !dead) v.play().catch(() => say("Press play to start the video.", 8));
+  }
+
   function startVideo(id) {
+    endPause();
     shift = 0;
     listenReset();
     st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting";
@@ -213,7 +247,8 @@
     loadShift();
     if (!st.settings || !st.settings.on) { unmute(); return; }
     hold(true);
-    say(lateStart ? "CleanStream is getting this video's captions…" : "CleanStream is getting this video's captions (the sound is off until it's ready)…", 0);
+    say("CleanStream is getting this video's captions…", 0);
+    startPause();
     // the player must have this video loaded before its captions can be asked for, and not be
     // playing an ad: asked during an ad, the answer was the ad's (no captions)
     let tries = 0, adFirst = false;
@@ -229,7 +264,8 @@
       }
       if (adFirst) {                            // the ad just ended: let the video load first
         adFirst = false;
-        say(lateStart ? "CleanStream is getting this video's captions…" : "CleanStream is getting this video's captions (the sound is off until it's ready)…", 0);
+        say("CleanStream is getting this video's captions…", 0);
+        startPause();
         setTimeout(ask, 1000);
         return;
       }
@@ -242,7 +278,7 @@
       window.postMessage({ [TAG]: "content", type: "get-captions", video: id }, "*");
     };
     st.askAgain = () => { tries = 0; hold(true); setTimeout(() => { if (st.captions !== "ok") ask(); }, 1500); };
-    setTimeout(ask, 800);
+    setTimeout(ask, 250);
   }
 
   window.addEventListener("message", e => {
@@ -273,7 +309,11 @@
     L.state = "checking";
     let r = null;
     try { r = await chrome.runtime.sendMessage({ type: "helper-hello" }); } catch (e) { /* cut off */ }
-    if (!r || r.type !== "hello" || !r.ok) { L.state = "none"; L.why = (r && r.why) || ""; return; }
+    if (!r || r.type !== "hello" || !r.ok) {
+      L.state = "none"; L.why = (r && r.why) || "no answer";
+      setTimeout(() => { if (L.state === "none" && !L.el) L.state = "off"; }, 90000);   // asked again in a while
+      return;
+    }
     L.state = "ready";
     listenAttach();
   }

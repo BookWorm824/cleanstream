@@ -138,11 +138,13 @@ chrome.runtime.onInstalled.addListener(async () => {
 // a secondary big download"; "Yes, register it", "Yes, build it"). One connection, shared by the
 // tabs; closed after 2 minutes with nothing to hear, so it isn't kept in memory for nothing.
 const HELPER = "com.cleanstream.listen";
-let helper = null, helperGone = null, helperIdle = null, helperNext = 1;
+let helper = null, helperGone = null, helperGoneAt = 0, helperIdle = null, helperNext = 1;
 const helperWaiting = new Map();
 function helperPort() {
   if (helper) return helper;
-  if (helperGone || !chrome.runtime.connectNative) return null;
+  if (helperGone && Date.now() - helperGoneAt < 60000) return null;    // tried again after a minute
+  if (!chrome.runtime.connectNative) return null;
+  helperGone = null;
   try { helper = chrome.runtime.connectNative(HELPER); } catch (e) { helperGone = String(e); return null; }
   helper.onMessage.addListener(msg => {
     const key = msg.id == null ? "hello" : msg.id;
@@ -152,7 +154,7 @@ function helperPort() {
   helper.onDisconnect.addListener(() => {
     const why = (chrome.runtime.lastError && chrome.runtime.lastError.message) || "closed";
     helper = null;
-    if (/not found|forbidden|not allowed/i.test(why)) helperGone = why;     // not installed here
+    if (/not found|forbidden|not allowed/i.test(why)) { helperGone = why; helperGoneAt = Date.now(); }   // not installed here
     for (const done of helperWaiting.values()) done({ type: "error", why });
     helperWaiting.clear();
   });
