@@ -120,7 +120,7 @@
     // only what changed is written (the owner, 2026-11-18: the window "kinda flickering" as
     // everything was cleared and filled in again every 2 seconds)
     const only = (say, src = "") => { set("video-say", say); set("video-src", src); $("video-clock").hidden = true;
-      $("found-box").hidden = true; foundKey = null; showNudge(null); };
+      $("found-box").hidden = true; foundKey = null; showNudge(null); $("video-listen").hidden = true; };
     $("video-box").hidden = false;
     if (!site) {
       return only("Open a video on YouTube, Netflix, Prime Video, Hulu, Disney+, Max, Peacock or Paramount+ to use CleanStream.");
@@ -156,6 +156,11 @@
       error: "Couldn't read this video's captions.",
     }[r.captions];
     showNudge(r.captions === "ok" && r.mutes.length && r.shiftKey ? r : null);
+    // the listening helper (0.4.37): only shown where it's installed and listening
+    const ls = r.listen;
+    $("video-listen").hidden = !(ls && ls.state === "on");
+    if (ls && ls.state === "on") set("video-listen", "Listening with CleanView's helper: " +
+      (ls.heard ? `${ls.heard} words heard so far${ls.learned ? ", and it has learned this video's timing." : "."}` : "it hears the words as the video plays."));
     const n = r.mutes.length;
     let text = say || (n ? `${n} ${n === 1 ? "word or phrase" : "words or phrases"} will be muted.`
       : "Nothing to mute in the captions.");

@@ -37,6 +37,9 @@ TEST_HOSTS = {"www.primevideo.com": "127.0.0.2", "www.netflix.com": "127.0.0.3",
 def firefox_manifest(m, test=False):
     m = json.loads(json.dumps(m))
     m["background"] = {"scripts": [m["background"]["service_worker"]]}
+    # the listening helper (0.4.37) is Chrome only for now: Firefox would ask for the new
+    # permission on update, and its helper is registered elsewhere
+    m["permissions"] = [p for p in m["permissions"] if p != "nativeMessaging"]
     # no update_url: Mozilla's upload refused it, even for "On your own" (2026-11-18:
     # '"update_url" is not allowed'), so new versions are uploaded and installed by hand for now
     # Mozilla asks every new add-on what it collects: CleanStream collects nothing ("none"; that

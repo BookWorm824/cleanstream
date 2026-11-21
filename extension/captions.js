@@ -42,7 +42,10 @@
   const HIDDEN = /^\[\s*_+\s*\]$/, HIDDEN_IN = /\[\s*_+\s*\]/g, HIDDEN_SAID = "[ __ ]", HIDDEN_PAD = 0.15;
 
   /** json3 -> cues [{s, e, text, words: [{raw, w, s, e, timed}]}] (seconds). */
-  function readJson3(data, asr) {
+  // opts.calib: { lead, spc } learned from heard words for this video (where a line's words really
+  // fall: lead seconds after it starts, spc seconds a letter); opts.heard: words the listening
+  // helper heard ({ w: CS.norm()ed, s, e }), which give their exact times (0.4.37)
+  function readJson3(data, asr, opts = {}) {
     const cues = [];
     // A line's words are said before the next line starts. YouTube's newer auto captions (whole
     // lines, no word times) keep each line up about 2 s after the next one starts, and spreading
@@ -104,17 +107,28 @@
         let m; const re = /\S+/g;
         while ((m = re.exec(said))) {
           const hidden = /^⟦_+⟧$/.test(m[0]);
+          let s = s0 + fast * m.index / total, e = s0 + slow * (m.index + m[0].length) / total;
+          if (asr && opts.calib) {                   // learned from what was heard in this video
+            s = Math.max(s0 - 0.3, s0 + opts.calib.lead + opts.calib.spc * m.index);
+            e = Math.max(s + 0.15, s0 + opts.calib.lead + opts.calib.spc * (m.index + m[0].length));
+          }
           words.push({ raw: hidden ? HIDDEN_SAID : m[0], w: hidden ? "" : CS.norm(m[0]), hidden,
-            s: s0 + fast * m.index / total, e: s0 + slow * (m.index + m[0].length) / total, timed: false });
+            s, e, timed: false, s0, ix: m.index });
         }
       }
       if (words.length) cues.push({ s: s0, e: s0 + dur, text, words, asr: !!asr });
     }
-    // an auto-made word ends where the next one starts (at most LONGEST_WORD later)
+    // words the listening helper heard: their own times (0.4.37)
+    if (asr && opts.heard && opts.heard.length)
+      for (const [c, h] of matchHeard(cues, opts.heard)) { c.s = h.s; c.e = h.e; c.timed = true; c.heard = true; }
+    // an auto-made word ends where the next one starts (at most LONGEST_WORD later); a guessed one
+    // keeps its own end (where it ends said slowly: 0.4.36 meant it, this step undid it)
     if (asr) {
       const all = cues.flatMap(c => c.words);
       all.sort((a, b) => a.s - b.s);
       all.forEach((x, k) => {
+        if (x.heard) return;
+        if (x.timed === false) { x.e = Math.max(x.e, x.s + 0.4); return; }
         const nxt = all[k + 1];
         const cue = cues.find(c => c.words.includes(x));
         const end = Math.min(nxt ? nxt.s : x.s + 0.6, x.s + LONGEST_WORD, Math.max(cue.e, x.s + 0.3));
@@ -122,6 +136,58 @@
       });
     }
     return cues;
+  }
+
+  // ---------- heard words: the listening helper (0.4.37) ----------
+  // CleanView's speech model, run by a small helper on the PC (only where CleanView is installed:
+  // the owner, 2026-11-20, "i would rather not have to make a secondary big download"), hears the
+  // sound as it plays. Its words are matched to the caption lines word by word, in order.
+  /** [captionWord, heardWord] pairs: the longest run of the same words in a line and the words heard
+   *  around it; a hidden swear between two matched words takes the heard word(s) in between. */
+  function matchHeard(cues, heard) {
+    const pairs = [];
+    const hs0 = [...heard].sort((a, b) => a.s - b.s);
+    for (const c of cues) {
+      const ws = c.words.filter(x => x.timed === false);
+      if (!ws.length) continue;
+      const hs = hs0.filter(x => x.s >= c.s - 1.5 && x.s <= c.e + 2.5);
+      if (!hs.length) continue;
+      const n = ws.length, m = hs.length, L = [];
+      for (let i = 0; i <= n; i++) L.push(new Int16Array(m + 1));
+      for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--)
+        L[i][j] = ws[i].w && ws[i].w === hs[j].w ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+      const got = [];
+      for (let i = 0, j = 0; i < n && j < m;) {
+        if (ws[i].w && ws[i].w === hs[j].w) { got.push([i, j]); i++; j++; }
+        else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++;
+      }
+      if (got.length < 2) continue;               // too little to be sure it's this line
+      for (const [a, b] of got) pairs.push([ws[a], hs[b]]);
+      const gap = (a1, a2, b1, b2) => {           // caption words a1+1..a2-1, heard b1+1..b2-1
+        const mw = ws.slice(a1 + 1, a2), mh = hs.slice(b1 + 1, b2);
+        if (mw.length === 1 && mw[0].hidden && mh.length >= 1 && mh.length <= 3)
+          pairs.push([mw[0], { s: mh[0].s, e: mh[mh.length - 1].e }]);
+      };
+      for (let k = 0; k + 1 < got.length; k++) gap(got[k][0], got[k + 1][0], got[k][1], got[k + 1][1]);
+      // a hidden swear starting or ending the line: the heard word just before or after the match
+      if (got[0][0] === 1 && ws[0].hidden && got[0][1] >= 1) gap(-1, 1, got[0][1] - 2, got[0][1]);
+      const [la, lb] = got[got.length - 1];
+      if (la === n - 2 && ws[n - 1].hidden && lb + 1 < m) gap(n - 2, n, lb, lb + 2);
+    }
+    return pairs;
+  }
+  /** Where a line's words really fall in this video, from the heard words: lead seconds after the
+   *  line starts, spc seconds a letter (a straight line through them). null until 30 are known. */
+  function calibrate(cues, heard) {
+    const pts = matchHeard(cues, heard).filter(([c]) => !c.hidden && c.ix != null).map(([c, h]) => [c.ix, h.s - c.s0]);
+    if (pts.length < 30) return null;
+    const n = pts.length, mx = pts.reduce((s, p) => s + p[0], 0) / n, my = pts.reduce((s, p) => s + p[1], 0) / n;
+    let sxy = 0, sxx = 0;
+    for (const [x, y] of pts) { sxy += (x - mx) * (y - my); sxx += (x - mx) * (x - mx); }
+    const spc = sxx ? sxy / sxx : 0, lead = my - spc * mx;
+    if (!(spc > 0.02 && spc < 0.2) || !(lead > -1.5 && lead < 3)) return null;
+    const sd = Math.sqrt(pts.reduce((s, [x, y]) => s + (y - lead - spc * x) ** 2, 0) / n);
+    return { lead, spc, sd, n };
   }
 
   // ---------- names (cleanview.name_in_subtitles, bare_god) ----------
@@ -543,6 +609,6 @@
         for (let k = a; k < b; k++) out.add(k);
     return out;
   }
-  globalThis.CSCaptions = { starIdx, linesLang, readJson3, readTTML, readVTT, readSubtitles, plan, ranges, findInTrack, soundsAlike, LABEL,
+  globalThis.CSCaptions = { matchHeard, calibrate, starIdx, linesLang, readJson3, readTTML, readVTT, readSubtitles, plan, ranges, findInTrack, soundsAlike, LABEL,
     lineFinds };
 })();

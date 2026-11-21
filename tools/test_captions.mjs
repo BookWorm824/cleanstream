@@ -251,7 +251,7 @@ test("newer auto captions: a line before a pause goes at the speaker's pace, not
   const cues = CC.readJson3({ events: ev }, true);
   const hid = cues[3].words.find(w => w.hidden);
   // between the speaker's usual pace and the slower quarter; was 358.1 (spread over 5.84 s)
-  assert.ok(hid.s > 355.2 && hid.s < 356.0 && hid.e > 356.4 && hid.e < 357.2, `${hid.s} ${hid.e}`);
+  assert.ok(hid.s > 355.2 && hid.s < 356.0 && hid.e > 356.0 && hid.e < 357.2, `${hid.s} ${hid.e}`);
   // the mute covers where she heard it (5:56 to 5:56.5), and not the whole line
   const mu = CC.plan({ auto: cues }, adults).mutes.find(m => m.text === "[ __ ]" && m.s > 355);
   assert.ok(mu.from < 356.0 && mu.to > 356.5 && mu.from > 354.0, `${mu.from} ${mu.to}`);

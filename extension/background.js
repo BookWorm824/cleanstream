@@ -132,8 +132,49 @@ chrome.runtime.onInstalled.addListener(async () => {
   } catch (e) { /* nothing to clear */ }
 });
 
+// ---------- the listening helper (0.4.37) ----------
+// A small program on the PC that hears the sound with CleanView's own speech model (only where
+// CleanView and the helper are installed: the owner, 2026-11-20, "i would rather not have to make
+// a secondary big download"; "Yes, register it", "Yes, build it"). One connection, shared by the
+// tabs; closed after 2 minutes with nothing to hear, so it isn't kept in memory for nothing.
+const HELPER = "com.cleanstream.listen";
+let helper = null, helperGone = null, helperIdle = null, helperNext = 1;
+const helperWaiting = new Map();
+function helperPort() {
+  if (helper) return helper;
+  if (helperGone || !chrome.runtime.connectNative) return null;
+  try { helper = chrome.runtime.connectNative(HELPER); } catch (e) { helperGone = String(e); return null; }
+  helper.onMessage.addListener(msg => {
+    const key = msg.id == null ? "hello" : msg.id;
+    const done = helperWaiting.get(key);
+    if (done) { helperWaiting.delete(key); done(msg); }
+  });
+  helper.onDisconnect.addListener(() => {
+    const why = (chrome.runtime.lastError && chrome.runtime.lastError.message) || "closed";
+    helper = null;
+    if (/not found|forbidden|not allowed/i.test(why)) helperGone = why;     // not installed here
+    for (const done of helperWaiting.values()) done({ type: "error", why });
+    helperWaiting.clear();
+  });
+  return helper;
+}
+function askHelper(msg) {
+  return new Promise(done => {
+    const port = helperPort();
+    if (!port) return done({ type: "error", why: helperGone || "no helper" });
+    const key = msg.type === "hello" ? "hello" : helperNext++;
+    if (key !== "hello") msg.id = key;
+    helperWaiting.set(key, done);
+    clearTimeout(helperIdle);
+    helperIdle = setTimeout(() => { if (helper && !helperWaiting.size) { helper.disconnect(); helper = null; } }, 120000);
+    try { port.postMessage(msg); } catch (e) { helperWaiting.delete(key); done({ type: "error", why: String(e) }); }
+  });
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg.type === "check-files") { checkFiles(); return; }
+  if (msg.type === "helper-hello") { askHelper({ type: "hello" }).then(reply); return true; }
+  if (msg.type === "helper-hear") { askHelper({ type: "hear", t0: msg.t0, pcm: msg.pcm }).then(reply); return true; }
   if (msg.type === "start-here" && msg.tabId != null) {     // the settings window: no answer from the page
     makeSureRunning(msg.tabId).then(ok => reply(ok), () => reply(false));
     return true;

@@ -76,11 +76,11 @@
   }
 
   // ---------- captions ----------
-  function parse(text, asr) {
+  function parse(text, asr, opts) {
     if (!text) return null;
     text = text.trim();
     if (text.startsWith("{")) {
-      try { return CC.readJson3(JSON.parse(text), asr); } catch (e) { return null; }
+      try { return CC.readJson3(JSON.parse(text), asr, opts); } catch (e) { return null; }
     }
     if (text.startsWith("<")) {                 // srv3 / XML captions, just in case
       const doc = new DOMParser().parseFromString(text, "text/xml");
@@ -90,7 +90,7 @@
           segs: segs.length ? segs.map(s => ({ utf8: s.textContent + " ", tOffsetMs: +s.getAttribute("t") || 0 }))
             : [{ utf8: p.textContent }] };
       });
-      return CC.readJson3({ events }, asr);
+      return CC.readJson3({ events }, asr, opts);
     }
     return null;
   }
@@ -184,6 +184,7 @@
         "language can't be muted.", 9);
       return;
     }
+    st.raw = { written: d.written, auto: d.auto };     // kept, to place words again from what's heard
     const written = parse(d.written, false), auto = parse(d.auto, true);
     if (!(written && written.length) && !(auto && auto.length)) {
       st.captions = "empty";
@@ -201,6 +202,7 @@
 
   function startVideo(id) {
     shift = 0;
+    listenReset();
     st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting";
     // early.js may have muted it before this started: take that mute over (so it's undone
     // when the captions are in, or now if CleanStream is off)
@@ -251,6 +253,109 @@
     if (takeover) window.postMessage({ [TAG]: "page", type: "captions-done", video: d.video, nothing: true,
       written: null, auto: JSON.stringify({ events: [{ tStartMs: 0, dDurationMs: 100, segs: [{ utf8: "ok" }] }] }) }, "*");
   });
+
+  // ---------- listening (0.4.37): the helper hears the sound as it plays ----------
+  // Only where CleanView and its listening helper are installed (background.js asks it; nothing
+  // is downloaded: the owner, 2026-11-20, "i would rather not have to make a secondary big
+  // download"; "Yes, build it"). The sound playing is passed, a few seconds at a time, to the
+  // helper, which says when each word was said. YouTube's whole-line captions then take those
+  // times (a word heard again, after jumping back), and the rest of the video learns where its
+  // lines' words really fall (CC.calibrate). Nothing is saved; the sound never leaves the PC.
+  // The video's sound goes through CleanStream's own audio path on to the speakers, as before:
+  // that path is only joined once it's running, so the video is never left silent.
+  const L = { state: "off", ctx: null, el: null, chunk: [], pos: 0, t0: null, heard: [], calib: null, why: "", busy: 0 };
+  const RATE = 16000, CHUNK_SECS = 4, OVERLAP = 1;     // each piece starts with the last second of the one before
+  function listenReset() {
+    L.chunk = []; L.t0 = null; L.heard = []; L.calib = null;
+  }
+  async function listenStart() {
+    if (L.state !== "off" || dead) return;
+    L.state = "checking";
+    let r = null;
+    try { r = await chrome.runtime.sendMessage({ type: "helper-hello" }); } catch (e) { /* cut off */ }
+    if (!r || r.type !== "hello" || !r.ok) { L.state = "none"; L.why = (r && r.why) || ""; return; }
+    L.state = "ready";
+    listenAttach();
+  }
+  function listenAttach() {
+    const v = videoEl();
+    if (dead || !v || L.el === v || L.state === "none") return;
+    if (!L.ctx) { try { L.ctx = new AudioContext(); } catch (e) { L.state = "none"; L.why = String(e); return; } }
+    const ctx = L.ctx;
+    const join = () => {
+      if (L.el === v || ctx.state !== "running" || v !== videoEl()) return;
+      try {
+        const src = ctx.createMediaElementSource(v);          // the video's sound now comes through here
+        src.connect(ctx.destination);                          // ... and goes on to the speakers as before
+        const proc = ctx.createScriptProcessor(4096, 1, 1), quiet = ctx.createGain();
+        quiet.gain.value = 0;                                  // the copy for the helper: not to the speakers
+        src.connect(proc); proc.connect(quiet); quiet.connect(ctx.destination);
+        proc.onaudioprocess = e => listenSound(e, v);
+        L.el = v; L.state = "on";
+      } catch (e) { L.state = "none"; L.why = String(e); }    // e.g. joined already by an older copy
+    };
+    if (ctx.state === "running") return join();
+    ctx.resume().then(join, () => {});
+    // a browser only lets sound be routed once the viewer has clicked or pressed a key on the page
+    const later = () => ctx.resume().then(join, () => {});
+    document.addEventListener("pointerdown", later, { once: true, capture: true });
+    document.addEventListener("keydown", later, { once: true, capture: true });
+  }
+  function listenSound(e, v) {
+    if (dead) return;
+    if (!st.settings || !st.settings.on || !st.video || v !== videoEl() || !st.raw || !st.raw.auto) { L.chunk = []; L.t0 = null; return; }
+    if (v.paused || v.seeking || v.playbackRate !== 1 || adShowing()) { listenSend(false); return; }
+    const inp = e.inputBuffer.getChannelData(0), sr = e.inputBuffer.sampleRate;
+    // where in the video this stretch of sound was: now, less the stretch and what's still on its way
+    const t = v.currentTime - inp.length / sr - (L.ctx.baseLatency || 0) - (L.ctx.outputLatency || 0);
+    if (L.t0 != null && Math.abs(t - (L.t0 + L.chunk.length / RATE)) > 0.3) listenSend(false);   // a jump
+    if (L.t0 == null) { L.t0 = t; L.pos = 0; }
+    const step = sr / RATE;                                    // down to 16 kHz, each sample the average it stands for
+    let pos = L.pos;
+    for (; pos + step <= inp.length; pos += step) {
+      let s = 0, k = Math.floor(pos), z = Math.floor(pos + step);
+      for (let i = k; i < z; i++) s += inp[i];
+      L.chunk.push(s / Math.max(1, z - k));
+    }
+    L.pos = pos - inp.length;
+    if (L.chunk.length >= RATE * CHUNK_SECS) listenSend(true);
+  }
+  function listenSend(goingOn) {
+    const samples = L.chunk, t0 = L.t0, video = st.video, fresh = !L.joined;
+    L.chunk = []; L.t0 = null; L.joined = false;
+    if (goingOn && t0 != null && samples.length > RATE * OVERLAP) {        // the next piece starts with this one's last second
+      L.chunk = samples.slice(samples.length - RATE * OVERLAP); L.t0 = t0 + (samples.length - RATE * OVERLAP) / RATE; L.joined = true;
+    }
+    if (samples.length < RATE * 0.6 || t0 == null || L.busy > 3) return;
+    const pcm = new Int16Array(samples.length);
+    for (let i = 0; i < samples.length; i++) pcm[i] = Math.max(-1, Math.min(1, samples[i])) * 32767;
+    const bytes = new Uint8Array(pcm.buffer);
+    let s = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    L.busy++;
+    chrome.runtime.sendMessage({ type: "helper-hear", t0, pcm: btoa(s) }).then(r => {
+      L.busy--;
+      if (dead || st.video !== video || !r || r.type !== "words") return;
+      // a piece that goes on from the one before: its first half second was heard there already
+      const from = fresh ? t0 - 0.05 : t0 + OVERLAP / 2, t1 = t0 + samples.length / RATE;
+      L.heard = L.heard.filter(w => w.s < from || w.s >= t1)          // heard again: the newer ones
+        .concat(r.words.filter(w => w.s >= from).map(w => ({ w: CS.norm(w.t), raw: w.t, s: w.s, e: w.e })).filter(w => w.w));
+      listenRetime();
+    }, () => { L.busy--; });
+  }
+  let retimeTimer = null;
+  function listenRetime() {
+    clearTimeout(retimeTimer);
+    retimeTimer = setTimeout(() => {
+      if (dead || !st.raw || !st.raw.auto || !st.tracks) return;
+      const plain = parse(st.raw.auto, true);
+      if (!plain || !plain.length || !plain.some(c => c.words.some(w => w.timed === false))) return;  // words timed already
+      L.calib = CC.calibrate(plain, L.heard);
+      st.tracks.auto = parse(st.raw.auto, true, { calib: L.calib, heard: L.heard });
+      replan();
+    }, 200);
+  }
+  timers.push(setInterval(() => { if (L.state === "off" && st.captions === "ok") listenStart(); else if (L.state === "on" || L.state === "ready") listenAttach(); }, 2000));
 
   // ---------- muting at the right moment ----------
   function inRange(t, ranges, lead) {
@@ -354,7 +459,8 @@
       mutes: st.plan ? st.plan.mutes.map(m => ({ s: m.s, text: CS.mask(m.text), why: m.why,
         guess: !m.timed })) : [],
       left: st.plan ? st.plan.left.map(m => ({ s: m.s, text: m.text, why: m.why })) : [],
-      shiftKey: shiftKey(), shift };
+      shiftKey: shiftKey(), shift,
+      listen: { state: L.state, heard: L.heard.length, learned: !!L.calib, why: L.why } };
   }
   globalThis.__cleanstreamReply = () => (dead ? null : stateNow());
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {
