@@ -50,6 +50,10 @@ Good to know
 - It needs the video's captions (the auto-made ones are fine). A video with
   no English captions can't have its language muted.
 - If captions are on, bad words in them are shown as d***.
+- If CleanView is on the same computer, "Update CleanStream" also lets
+  CleanStream listen to YouTube videos (in Chrome and Edge) with
+  CleanView's speech model, so its mutes are timed better. Nothing extra is
+  downloaded, and without CleanView it works as before.
 - On Netflix, Prime Video, Hulu and the others CleanStream reads their
   English subtitles (without showing them on Netflix and Prime) and mutes a
   little wider than on YouTube, since they give a line at a time.

@@ -1,21 +1,14 @@
 @echo off
 rem Copyright (c) 2026 BookWorm824. All rights reserved. See LICENSE.
-rem Installs CleanStreams listening helper for this Windows user (no admin rights): copies it to
-rem %LOCALAPPDATA%\CleanStream Helper and tells Chrome and Edge where it is. It uses CleanViews
-rem Python and speech model, so CleanView must be installed; nothing is downloaded.
+rem Sets up CleanStreams listening helper for this Windows user (no admin rights). "Update
+rem CleanStream" does this by itself after each update when CleanView is installed; this is the
+rem same thing by hand (extension\helper\setup.ps1). Nothing is downloaded.
 title Install CleanStream listening helper
-if not exist "%LOCALAPPDATA%\CleanView\venv\Scripts\python.exe" (
+for /f "delims=" %%r in ('powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\extension\helper\setup.ps1"') do set "R=%%r"
+if "%R%"=="set up" (
+  echo CleanStreams listening helper is installed.
+  timeout /t 2 >nul
+) else (
   echo CleanView is not installed on this PC, so the listening helper cant work here.
   pause
-  exit /b 1
 )
-set "H=%LOCALAPPDATA%\CleanStream Helper"
-if not exist "%H%" mkdir "%H%"
-copy /y "%~dp0listen_host.py" "%H%\" >nul
-copy /y "%~dp0listen_host.bat" "%H%\" >nul
-copy /y "%~dp0com.cleanstream.listen.json" "%H%\" >nul
-reg add "HKCU\Software\Google\Chrome\NativeMessagingHosts\com.cleanstream.listen" /ve /t REG_SZ /d "%H%\com.cleanstream.listen.json" /f >nul
-reg add "HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.cleanstream.listen" /ve /t REG_SZ /d "%H%\com.cleanstream.listen.json" /f >nul
-echo installed> "%H%\installed.txt"
-echo CleanStreams listening helper is installed.
-timeout /t 2 >nul

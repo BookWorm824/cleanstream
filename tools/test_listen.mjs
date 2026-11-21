@@ -82,7 +82,9 @@ p.loadModule = () => {}; p.unloadModule = () => {};
 
 fs.rmSync(EXT, { recursive: true, force: true });
 fs.cpSync(SRC, EXT, { recursive: true });
-const b = await Browser.start({ extension: EXT });
+// (a silent stand-in for the speakers: with only --mute-audio a playing video's clock can stand still
+// in the hidden browser, and then nothing is heard; 2026-11-21)
+const b = await Browser.start({ extension: EXT, args: ["--disable-audio-output"] });
 let bad = 0;
 const check = (ok, what) => { console.log((ok ? "  ok   " : "  FAIL ") + what); if (!ok) bad++; };
 try {

@@ -15,6 +15,8 @@ rem fake update, even from inside the GitHub account. tools\sign_release.mjs mak
 rem the secret half of the key never leaves the owner's PC (and her Google Drive).
 rem CS_UPDATE_ZIP (a local zip in place of the download) and CS_UPDATE_TEST (no desktop icon,
 rem no pause) are only for tools\test_update_seal.mjs; the seal is checked either way.
+rem After each update, helper\setup.ps1 sets up the listening helper where CleanView is installed
+rem (the owner, 2026-11-21: "make it easier now"); not in the tests.
 if /i not "%~1"=="--from-temp" (
   copy /y "%~f0" "%TEMP%\cleanstream-update.cmd" >nul
   "%TEMP%\cleanstream-update.cmd" --from-temp "%~dp0."
@@ -67,6 +69,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "  if ($mine -and $mine.version -and ([version]$m.version -lt [version]$mine.version)) { throw $older }" ^
   "  robocopy $newExt $ext /MIR /NFL /NDL /NJH /NJS /NP | Out-Null;" ^
   "  if ($LASTEXITCODE -ge 8) { throw 'The new files could not be copied.' }" ^
+  "  $hs = Join-Path $ext 'helper\setup.ps1'; $heard = $null;" ^
+  "  $hadHelper = Test-Path (Join-Path $env:LOCALAPPDATA 'CleanStream Helper\installed.txt');" ^
+  "  if (-not $env:CS_UPDATE_TEST -and (Test-Path -LiteralPath $hs)) { try { $heard = & $hs -Ext $ext } catch { } }" ^
   "  $had = $true;" ^
   "  if (-not $env:CS_UPDATE_TEST) {" ^
   "    $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Update CleanStream.lnk';" ^
@@ -78,6 +83,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "  Write-Host '';" ^
   "  Write-Host ('Done: CleanStream ' + $m.version + ' is ready.');" ^
   "  Write-Host 'Chrome picks it up within a minute. Then press F5 on any YouTube page.';" ^
+  "  if ($heard -eq 'set up' -and -not $hadHelper) { Write-Host ''; Write-Host 'CleanView is on this PC too, so CleanStream can now also listen to YouTube videos to time its mutes better.' }" ^
   "  if (-not $had) { Write-Host ''; Write-Host 'Next time, just double-click Update CleanStream on your desktop.' }" ^
   "} catch {" ^
   "  $why = $_.Exception.Message;" ^

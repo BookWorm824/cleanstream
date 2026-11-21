@@ -1,6 +1,6 @@
 {
  "app": "CleanStream",
- "version": "0.4.38",
+ "version": "0.4.39",
  "sha256": {
   "LICENSE": "3550fc3914aed3d503e93a92205a6245ff7f18db56c3a030f46abc1b33449a73",
   "NOTICE-FOR-AI.md": "d4b7410948fac69bd7c84d5650c5092317be67addd8b07364cfab3966f82687b",
@@ -8,12 +8,15 @@
   "captions.js": "fc06998dc8450a44d18a20fc5d18975bb27a8442764b10d4df18b446a7d515ba",
   "content.js": "9c31a0c25ee7d07ca964e67d4d11d97363a9244d89862a82b8d87f519bf902ba",
   "early.js": "b76a97484e96aaff919536bf8106c94a99952207464a7aabe7f3dd10bd358907",
+  "helper/listen_host.bat": "6de1c2138e3327803502e2e53088df26d4c15d643d2152f8aca0090743a60a70",
+  "helper/listen_host.py": "b7aa2fb411a3ee928d601d66454fb0dd312fa89feda965597648ed2d2203b526",
+  "helper/setup.ps1": "3741933f81499b48c834fb55b8c243a7c722fdac4ecf702f6dca90322d96f9cc",
   "icons/128.png": "f4c6a08259be1cf283daa6741b91a58b23416a605d3ceb276aa39d742ee6c78d",
   "icons/16.png": "1417cb9437089d9346c759c708ff97066dd37285d45eba824c343752f1938455",
   "icons/32.png": "205f253b96bed4dd02ae49957655dc74bd6decae863d942f29e31206ab60f211",
   "icons/48.png": "bd9218aa17ef6ca8ef7a052b6bbb7db2ce73282182696e2ad39d9d82e5039c8b",
   "icons/cleanstream.ico": "9539e455904edcb6e5f1c5968caecba3b23f494aaf4bab9b589ac0cbbbfb40ab",
-  "manifest.json": "c741b010c687b4ad71b4a4a780fdd1264155aeb486705213cad21b6b0227b049",
+  "manifest.json": "4175407c36bd1f77b88dc19d1abb2e844f7134a6510e42a4642889ae2c8a9fee",
   "netflix_page.js": "105d52fded5eb9692794decb5051fd433589f01381ac7c7df8a894ada7acfb43",
   "other_page.js": "15f0e7ccb32ee1f53157989f249c51a9ec7278da8139a74c777f80168f13527d",
   "page.js": "78c69e519ae5be6de1ca5f43eb6424e29b99c94d89a4eba23bb64eafd3194da3",
@@ -26,7 +29,7 @@
   "site_netflix.js": "88b73d757c3b0126477702abb9de1b6a05e76e9be404d269a566f317158cfd53",
   "site_other.js": "ba0ad210e5542d6e54f345319b4f130f4512391c0194bda27ed64366391e0811",
   "site_prime.js": "e36b2eaf28a9cac9bd7500da4df00e7804e4d9172da52586ffaac902ef897ddd",
-  "update.cmd": "036c9bf2994f3c0ce3d0029190668435f939ce2104858ddd4a39eca715486fa9",
+  "update.cmd": "f64bd1d4b9d5e8913c4dc6d26a0cbc1bb8de1d91da292d931683bf315d890042",
   "words.js": "a8155fc8fefd9fdb0502602bbe09620ec6acf0c96dc92e50403fa74887a29b24",
   "words_data.js": "87f2b180b0c0379af57309446fb78bb0a6dc77d7a43dd65bcdd60004a4a540d6"
  }
