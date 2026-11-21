@@ -45,6 +45,11 @@ li .w { font-weight: 600; }
 li .why { color: var(--dim); }
 li.left .w { font-weight: 400; text-decoration: line-through; color: var(--dim); }
 footer { margin: 4px 12px 12px; }
+.nudge { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; }
+.nudge .small { margin: 0; flex: 1; }
+button.pill { border: 1px solid var(--edge); border-radius: 999px; background: transparent; color: var(--ink);
+  padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+button.pill:hover { border-color: var(--green); color: var(--green); }
 .link { border: 0; background: none; color: var(--green); cursor: pointer; padding: 0; font: inherit; font-size: 12px; }
 .switch { position: relative; width: 40px; height: 22px; }
 .switch input { opacity: 0; width: 0; height: 0; }

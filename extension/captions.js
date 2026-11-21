@@ -67,7 +67,11 @@
         const s0 = ev.tStartMs / 1000, nx = nextStart(s0);
         return nx != null && nx < s0 + (ev.dDurationMs || 0) / 1000 && nx > s0 ? lineText(ev).length / (nx - s0) : null;
       }).filter(r => r != null).sort((a, b) => a - b);
-      if (rates.length >= 5) pace = rates[Math.floor(rates.length / 4)];
+      // the speaker's usual pace (fast) and the slower quarter (slow): a word is muted from where it
+      // falls said quickly to where it ends said slowly, the stretch it could really be in (0.4.36;
+      // the owner, 2026-11-20: a rushed first row, "i heard the first 4 letters", and "i would like
+      // to make is as automatic as possible")
+      if (rates.length >= 5) pace = { fast: rates[Math.floor(rates.length / 2)], slow: rates[Math.floor(rates.length / 4)] };
     }
     for (const ev of (data && data.events) || []) {
       if (!ev.segs || ev.tStartMs == null) continue;
@@ -94,13 +98,14 @@
         const total = said.length || 1;
         // spread over the time until the next line starts (at least half its time on screen)
         const nx = nextStart(s0);
-        const span = nx != null && nx < s0 + dur ? Math.max(nx - s0, dur * 0.5)
-          : pace ? Math.min(dur, total / pace) : dur;
+        const base = nx != null && nx < s0 + dur ? Math.max(nx - s0, dur * 0.5) : dur;
+        const slow = pace && !(nx != null && nx < s0 + dur) ? Math.min(base, total / pace.slow) : base;
+        const fast = pace ? Math.min(slow, total / pace.fast) : slow;
         let m; const re = /\S+/g;
         while ((m = re.exec(said))) {
           const hidden = /^⟦_+⟧$/.test(m[0]);
           words.push({ raw: hidden ? HIDDEN_SAID : m[0], w: hidden ? "" : CS.norm(m[0]), hidden,
-            s: s0 + span * m.index / total, e: s0 + span * (m.index + m[0].length) / total, timed: false });
+            s: s0 + fast * m.index / total, e: s0 + slow * (m.index + m[0].length) / total, timed: false });
         }
       }
       if (words.length) cues.push({ s: s0, e: s0 + dur, text, words, asr: !!asr });

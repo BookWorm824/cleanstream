@@ -95,11 +95,33 @@
     return null;
   }
 
+
+  // ---------- her "too early / too late" for this video (0.4.36) ----------
+  // The settings window's buttons move every mute of a video by a quarter second, remembered for
+  // that video (the owner, 2026-11-20: YouTube "still getting off with the mutes", and to buttons
+  // for it, "yes"). Kept in this browser only (chrome.storage.local), seconds later (+) or sooner (-).
+  let shift = 0;
+  const shiftKey = () => (st.video ? "shift:" + location.hostname + ":" + st.video : null);
+  const shifted = rs => (shift ? rs.map(r => [Math.max(0, r[0] + shift), r[1] + shift]) : rs);
+  async function loadShift() {
+    const k = shiftKey();
+    let got = 0;
+    if (k) { try { got = +(await chrome.storage.local.get(k))[k] || 0; } catch (e) { /* cut off */ } }
+    if (k !== shiftKey()) return;                // moved to another video meanwhile
+    if (got !== shift) { shift = got; replan(); }
+  }
+  chrome.storage.onChanged.addListener((changes, area) => {
+    const k = shiftKey();
+    if (dead || area !== "local" || !k || !changes[k]) return;
+    shift = +changes[k].newValue || 0;
+    replan();
+  });
+
   function replan() {
     if (!st.tracks || !st.settings) return;
     st.ticks = S.ticksFor(st.settings);
     st.plan = CC.plan(st.tracks, st.ticks, st.settings.mine);
-    st.ranges = st.settings.on ? CC.ranges(st.plan.mutes) : [];
+    st.ranges = st.settings.on ? shifted(CC.ranges(st.plan.mutes)) : [];
     chrome.runtime.sendMessage({ type: "found", video: st.video, count: st.plan.mutes.length }).catch(() => {});
   }
 
@@ -178,6 +200,7 @@
   }
 
   function startVideo(id) {
+    shift = 0;
     st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting";
     // early.js may have muted it before this started: take that mute over (so it's undone
     // when the captions are in, or now if CleanStream is off)
@@ -185,6 +208,7 @@
     globalThis.__csEarlyMuted = false; globalThis.__csArmed = false;
     if (early) st.weMuted = true; else unmute();
     hold(false);
+    loadShift();
     if (!st.settings || !st.settings.on) { unmute(); return; }
     hold(true);
     say(lateStart ? "CleanStream is getting this video's captions…" : "CleanStream is getting this video's captions (the sound is off until it's ready)…", 0);
@@ -329,7 +353,8 @@
       status: st.status, source: st.plan && st.plan.source, now: v ? v.currentTime : 0,
       mutes: st.plan ? st.plan.mutes.map(m => ({ s: m.s, text: CS.mask(m.text), why: m.why,
         guess: !m.timed })) : [],
-      left: st.plan ? st.plan.left.map(m => ({ s: m.s, text: m.text, why: m.why })) : [] };
+      left: st.plan ? st.plan.left.map(m => ({ s: m.s, text: m.text, why: m.why })) : [],
+      shiftKey: shiftKey(), shift };
   }
   globalThis.__cleanstreamReply = () => (dead ? null : stateNow());
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {

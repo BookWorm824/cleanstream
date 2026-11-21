@@ -250,10 +250,36 @@ test("newer auto captions: a line before a pause goes at the speaker's pace, not
   ];
   const cues = CC.readJson3({ events: ev }, true);
   const hid = cues[3].words.find(w => w.hidden);
-  // the slower quarter of the overlapping lines' letters a second; was 358.1 (spread over 5.84 s)
-  assert.ok(hid.s > 355.6 && hid.s < 356.6, String(hid.s));
+  // between the speaker's usual pace and the slower quarter; was 358.1 (spread over 5.84 s)
+  assert.ok(hid.s > 355.2 && hid.s < 356.0 && hid.e > 356.4 && hid.e < 357.2, `${hid.s} ${hid.e}`);
+  // the mute covers where she heard it (5:56 to 5:56.5), and not the whole line
+  const mu = CC.plan({ auto: cues }, adults).mutes.find(m => m.text === "[ __ ]" && m.s > 355);
+  assert.ok(mu.from < 356.0 && mu.to > 356.5 && mu.from > 354.0, `${mu.from} ${mu.to}`);
   // a line that overlaps the next is spread until the next starts, as before
   assert.ok(Math.abs(cues[1].words[0].s - 345.08) < 1e-6);
+});
+
+// a rushed first row: the word comes sooner than an even spread puts it, so it's muted from where it
+// falls said at the speaker's usual pace (0.4.36; the owner, 2026-11-20, a comedy special at 15:38:
+// "too late", "i heard the first 4 letters"; the lines are from it, the rest of the set as filler
+// at its usual pace, 16.5 letters a second)
+test("newer auto captions: a word deep in a rushed line is muted from where it falls at the usual pace", () => {
+  const line = (ms, dur, text) => ({ tStartMs: ms, dDurationMs: dur, wWinId: 1, segs: [{ utf8: text }] });
+  const filler = Array.from({ length: 30 }, (_, k) => line(800000 + k * 2000, 3000, "and so we went to the store and we"));
+  const ev = [...filler,
+    line(908639, 7440, "one.\nProbably like her first day on the job."),
+    line(913600, 7919, "All the other nurses are using me. It's\nlike, it's almost like a um initiation"),
+    line(919120, 8079, "into the nursing home.\nI like, Ooh, you got to go to room six."),
+    line(923920, 12030, "Mr. Gary just bust.\nShe comes in the room. Huh? First day."),
+    line(932890, 3060, "[Applause]"),
+    line(937279, 6240, "Would you like the [ __ ]\nI don't think I'm supposed to do"),
+    line(942079, 3921, "anything like that. It's my first day.\nThat's not very appropriate."),
+    line(944880, 4840, "I don't know what the [ __ ] she talking\nabout. She ain't say no."),
+  ];
+  const cues = CC.readJson3({ events: ev }, true);
+  const mu = CC.plan({ auto: cues }, adults).mutes.find(m => m.text === "[ __ ]" && m.s > 937 && m.s < 940);
+  // was from 938.10 (the first 4 letters got through); the word is said by about 937.9
+  assert.ok(mu.from < 937.9 && mu.to > 938.8, `${mu.from} ${mu.to}`);
 });
 
 // CleanView 1.18.150, the Swearing list sorted by type (the owner: "organize better by type",

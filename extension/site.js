@@ -178,13 +178,35 @@
     if (first) say("CleanStream is reading this title's subtitles as they come, and muting from them.", 6);
     if (first) setTimeout(shownCheck, 0);
   }
+
+  // ---------- her "too early / too late" for this video (0.4.36) ----------
+  // The settings window's buttons move every mute of a video by a quarter second, remembered for
+  // that video (the owner, 2026-11-20: YouTube "still getting off with the mutes", and to buttons
+  // for it, "yes"). Kept in this browser only (chrome.storage.local), seconds later (+) or sooner (-).
+  let shift = 0;
+  const shiftKey = () => (st.video ? "shift:" + location.hostname + ":" + st.video : null);
+  const shifted = rs => (shift ? rs.map(r => [Math.max(0, r[0] + shift), r[1] + shift]) : rs);
+  async function loadShift() {
+    const k = shiftKey();
+    let got = 0;
+    if (k) { try { got = +(await chrome.storage.local.get(k))[k] || 0; } catch (e) { /* cut off */ } }
+    if (k !== shiftKey()) return;                // moved to another video meanwhile
+    if (got !== shift) { shift = got; replan(); }
+  }
+  chrome.storage.onChanged.addListener((changes, area) => {
+    const k = shiftKey();
+    if (dead || area !== "local" || !k || !changes[k]) return;
+    shift = +changes[k].newValue || 0;
+    replan();
+  });
+
   function replan() {
     if (!st.tracks || !st.settings) return;
     st.ticks = S.ticksFor(st.settings);
     st.cats = CS.catsFor(st.ticks);             // for starring the words in subtitles shown on screen
     st.lastCue = Math.max(0, ...(st.tracks.written || []).map(c => c.e || 0));
     st.plan = CC.plan(st.tracks, st.ticks, st.settings.mine, { subtitles: true });
-    st.ranges = st.settings.on ? CC.ranges(st.plan.mutes) : [];
+    st.ranges = st.settings.on ? shifted(CC.ranges(st.plan.mutes)) : [];
     chrome.runtime.sendMessage({ type: "found", video: st.video, count: st.plan.mutes.length }).catch(() => {});
   }
   function subsArrived(d) {
@@ -431,12 +453,14 @@
   if (SHOWN) timers.push(setInterval(shownCheck, 1000));
 
   function startTitle(id) {
+    shift = 0;
     st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting"; st.lastCue = 0;
     pieces = new Map(); whole = false;
     unhide(); st.toldHidden = false;
     if (SITE.newTitle) SITE.newTitle();
     spanEl = null;                                   // a new title: its own ads
     unmute(); hold(false);
+    loadShift();
     if (!id || !st.settings || !st.settings.on) return;
     hold(true);
     say(lateStart ? "CleanStream is getting this title's subtitles…" : "CleanStream is getting this title's subtitles (the sound is off until it's ready)…", 0);
@@ -512,7 +536,7 @@
       clock: v ? titleTime(v).t : null, ad: v ? isAd(v) : false,
       mutes: st.plan ? st.plan.mutes.map(m => ({ s: m.s, text: CS.mask(m.text), why: m.why, guess: false })) : [],
       left: st.plan ? st.plan.left.map(m => ({ s: m.s, text: m.text, why: m.why })) : [],
-      site: SITE.name };
+      site: SITE.name, shiftKey: shiftKey(), shift };
   }
   globalThis.__cleanstreamReply = () => (dead ? null : stateNow());
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {

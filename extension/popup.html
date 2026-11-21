@@ -25,6 +25,13 @@
     <p id="video-say" class="say"></p>
     <p id="video-src" class="small"></p>
     <p id="video-clock" class="small" hidden></p>
+    <!-- mutes off on this video: move them all a quarter second at a time (0.4.36) -->
+    <div id="nudge" class="nudge" hidden>
+      <span class="small">Mutes off?</span>
+      <button id="too-early" class="pill" title="The words before the bad word get muted: mute a quarter second later">Too early</button>
+      <button id="too-late" class="pill" title="The bad word plays and the words after get muted: mute a quarter second sooner">Too late</button>
+    </div>
+    <p id="nudge-say" class="small" hidden><span id="nudge-text"></span> <button id="nudge-undo" class="link">Put back</button></p>
     <details id="found-box" hidden>
       <summary id="found-head"></summary>
       <ul id="found"></ul>

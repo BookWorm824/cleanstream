@@ -117,6 +117,19 @@ try {
   check(!(end.track && end.track.languageCode), "captions left off after requests at once " + JSON.stringify(end.log));
   const st = await page.eval(`({ captions: globalThis.__cleanstreamState.captions, n: (globalThis.__cleanstreamState.plan || { mutes: [] }).mutes.length })`, { contextId: yt });
   check(st.captions === "ok" && st.n === 1, "the first video's captions were read: " + JSON.stringify(st));
+  // "Mutes off?" in the settings window: Too early moves this video's mutes a quarter second later,
+  // remembered for the video (0.4.36; the owner, 2026-11-20)
+  const before = await page.eval(`globalThis.__cleanstreamState.ranges.map(r => r[0])`, { contextId: yt });
+  const key = await page.eval(`globalThis.__cleanstreamReply().shiftKey`, { contextId: yt });
+  await pop.eval(`chrome.storage.local.set({ ${JSON.stringify(key)}: 0.25 }).then(() => true)`);
+  await sleep(500);
+  const after = await page.eval(`globalThis.__cleanstreamState.ranges.map(r => r[0])`, { contextId: yt });
+  check(before.length === 1 && after.length === 1 && Math.abs(after[0] - before[0] - 0.25) < 1e-6,
+    "Too early moves the mutes a quarter second later " + JSON.stringify([before, after, key]));
+  await pop.eval(`chrome.storage.local.remove(${JSON.stringify(key)}).then(() => true)`);
+  await sleep(500);
+  const back = await page.eval(`globalThis.__cleanstreamState.ranges.map(r => r[0])`, { contextId: yt });
+  check(Math.abs(back[0] - before[0]) < 1e-6, "Put back returns them");
   check(!page.logs.some(l => /ERROR/.test(l)), "no errors on the pages " + JSON.stringify(page.logs.filter(l => /ERROR/.test(l))));
 } finally { await b.close(); }
 console.log(bad ? `${bad} FAILED` : "ALL OK");

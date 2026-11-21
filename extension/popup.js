@@ -86,7 +86,29 @@
   // ---------- what was found in the video open in this tab ----------
   const set = (id, text) => { const el = $(id); if (el.textContent !== text) el.textContent = text; };
   let foundKey = null;
-  let noAnswer = [null, 0];            // [tab, how many times in a row its page didn't answer]
+  let noAnswer = [null, 0];
+  // ---------- "Mutes off?": moving this video's mutes (0.4.36; the owner, 2026-11-20) ----------
+  let nudge = null;                    // { key, shift } of the video shown
+  const STEP = 0.25;
+  const fmtSecs = x => (Math.round(Math.abs(x) * 100) / 100) + (Math.abs(x) === 1 ? " second" : " seconds");
+  function showNudge(r) {
+    nudge = r ? { key: r.shiftKey, shift: +r.shift || 0 } : null;
+    $("nudge").hidden = !nudge;
+    $("nudge-say").hidden = !nudge || !nudge.shift;
+    if (nudge && nudge.shift) set("nudge-text", `This video's mutes are moved ${fmtSecs(nudge.shift)} ${nudge.shift > 0 ? "later" : "sooner"}.`);
+  }
+  async function moveMutes(by) {
+    if (!nudge) return;
+    const next = by === 0 ? 0 : Math.round((nudge.shift + by) * 100) / 100;
+    try {
+      if (next) await chrome.storage.local.set({ [nudge.key]: next });
+      else await chrome.storage.local.remove(nudge.key);
+    } catch (e) { return; }
+    showNudge({ shiftKey: nudge.key, shift: next });
+  }
+  $("too-early").addEventListener("click", () => moveMutes(STEP));     // muted too soon: later
+  $("too-late").addEventListener("click", () => moveMutes(-STEP));     // muted too late: sooner
+  $("nudge-undo").addEventListener("click", () => moveMutes(0));            // [tab, how many times in a row its page didn't answer]
   async function showVideo() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const url = tab && tab.url || "";
@@ -98,7 +120,7 @@
     // only what changed is written (the owner, 2026-11-18: the window "kinda flickering" as
     // everything was cleared and filled in again every 2 seconds)
     const only = (say, src = "") => { set("video-say", say); set("video-src", src); $("video-clock").hidden = true;
-      $("found-box").hidden = true; foundKey = null; };
+      $("found-box").hidden = true; foundKey = null; showNudge(null); };
     $("video-box").hidden = false;
     if (!site) {
       return only("Open a video on YouTube, Netflix, Prime Video, Hulu, Disney+, Max, Peacock or Paramount+ to use CleanStream.");
@@ -133,6 +155,7 @@
       empty: "YouTube didn't share this video's captions. Reloading the page may help.",
       error: "Couldn't read this video's captions.",
     }[r.captions];
+    showNudge(r.captions === "ok" && r.mutes.length && r.shiftKey ? r : null);
     const n = r.mutes.length;
     let text = say || (n ? `${n} ${n === 1 ? "word or phrase" : "words or phrases"} will be muted.`
       : "Nothing to mute in the captions.");
