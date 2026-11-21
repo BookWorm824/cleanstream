@@ -22,6 +22,10 @@
   // then 0.25: "sometimes i can hear the first part of a letter of the word", 2026-11-18; only a
   // little more, so the word before is kept: "try not to make it too much longer")
   const PAD_BEFORE = 0.33, PAD_AFTER = 0.08, LONGEST_WORD = 1.2, JOIN_GAP = 0.2;
+  // a word the listening helper heard: its time comes from the sound as it played, which ran about
+  // 0.09 s early (0.01-0.17 s) in tests, so its mute runs on a little longer, and a little into
+  // the next word (0.4.44: a muted swear's mute ended 0.01 s before the word did)
+  const HEARD_AFTER = 0.18, HEARD_INTO_NEXT = 0.14;
   // little words said just before a word to mute: muting them too costs nothing (quick-talk mutes)
   const LITTLE_BEFORE = new Set(["a", "an", "the", "my", "your", "his", "her", "our", "their", "its",
     "to", "of", "in", "on", "at"]);
@@ -408,7 +412,7 @@
       const prior = ws.slice(0, a).filter(x => x.w || x.hidden).pop();
       const after = ws.slice(b).find(x => x.w || x.hidden);
       out.push({ s: span[0].s, e: span[span.length - 1].e, text: span.map(x => x.raw).join(" "),
-        cat, why: why || LABEL[cat] || cat, timed: span.every(x => x.timed), track: kind,
+        cat, why: why || LABEL[cat] || cat, timed: span.every(x => x.timed), heard: span.some(x => x.heard), track: kind,
         cal: span.every(x => x.timed || x.cal != null) && span.some(x => x.cal != null) ? Math.max(...span.map(x => x.cal || 0)) : null,
         cue: span[0].ci, prevS: prior && prior.timed ? prior.s : null, prevW: prior ? prior.w : null,
         nextS: after && after.timed ? after.s : null, nextE: after && after.timed ? after.e : null });
@@ -546,9 +550,9 @@
         from = Math.max(from, Math.min(m.s, m.s - back + 0.08));
       }
       from = Math.max(0, from - EARLIER);
-      let to = m.e + PAD_AFTER + pad + (m.timed || !opts.subtitles ? 0 : GUESS_AFTER);
+      let to = m.e + (m.heard ? HEARD_AFTER : PAD_AFTER) + pad + (m.timed || !opts.subtitles ? 0 : GUESS_AFTER);
       // ... and the late end barely into the word after (its start is where this word ends)
-      if (m.timed && m.nextS != null && m.nextS >= m.e - 0.05) to = Math.min(to, m.nextS + 0.04);
+      if (m.timed && m.nextS != null && m.nextS >= m.e - 0.05) to = Math.min(to, m.nextS + (m.heard ? HEARD_INTO_NEXT : 0.04));
       return { ...m, from, to };
     }).sort((a, b) => a.from - b.from);
     return { mutes, left, source: written && auto ? "both" : written ? "written" : auto ? "auto" : "none" };

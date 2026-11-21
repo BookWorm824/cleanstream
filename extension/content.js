@@ -150,7 +150,8 @@
     timers.forEach(clearInterval);
     observer.disconnect();
     clearTimeout(holdTimer); clearTimeout(pillTimer); endPause();
-    if (st.weMuted) { const v = videoEl(); if (v) v.muted = false; st.weMuted = false; }
+    if (L.speak) L.speak.gain.value = 1;                // the sound back on, by the knob too
+    if (st.weMuted || st.videoMuted) { const v = videoEl(); if (v && st.videoMuted) v.muted = false; st.weMuted = false; st.videoMuted = false; }
     st.holding = false; st.ranges = [];
     if (pill) pill.remove();
   }
@@ -243,7 +244,7 @@
     // when the captions are in, or now if CleanStream is off)
     const early = globalThis.__csEarlyMuted;
     globalThis.__csEarlyMuted = false; globalThis.__csArmed = false;
-    if (early) st.weMuted = true; else unmute();
+    if (early) { st.weMuted = true; st.videoMuted = true; } else unmute();
     hold(false);
     loadShift();
     if (!st.settings || !st.settings.on) { unmute(); return; }
@@ -360,12 +361,14 @@
       if (L.el === v || ctx.state !== "running" || v !== videoEl()) return;
       try {
         const src = ctx.createMediaElementSource(v);          // the video's sound now comes through here
-        src.connect(ctx.destination);                          // ... and goes on to the speakers as before
+        const speak = ctx.createGain();                        // ... and on to the speakers as before, through
+        src.connect(speak); speak.connect(ctx.destination);    // a knob CleanStream mutes with (mute())
         const proc = ctx.createScriptProcessor(4096, 1, 1), quiet = ctx.createGain();
         quiet.gain.value = 0;                                  // the copy for the helper: not to the speakers
         src.connect(proc); proc.connect(quiet); quiet.connect(ctx.destination);
         proc.onaudioprocess = e => listenSound(e, v);
-        L.el = v; L.state = "on";
+        L.el = v; L.speak = speak; L.state = "on";
+        tick();                                                // a mute already on moves to the knob
       } catch (e) { L.state = "none"; L.why = String(e); }    // e.g. joined already by an older copy
     };
     if (ctx.state === "running") return join();
@@ -441,14 +444,29 @@
     }
     return hi >= 0 && t < ranges[hi][1];
   }
+  // With the listening helper on, a mute turns down CleanStream's own knob on the way to the
+  // speakers, not the video: the helper still hears what's muted, so a muted word (and the words a
+  // wide first-time mute covered) is heard and kept, and muted right next time (0.4.44; the owner,
+  // 2026-11-21: "it caught the work suck, but it was muted for 4 seconds", "first time through",
+  // "1 12 to 1 16"). Without the helper, the video is muted as before.
+  const viaKnob = v => !!(L.speak && L.el === v && L.ctx && L.ctx.state === "running");
+  const mutedNow = v => (viaKnob(v) ? L.speak.gain.value === 0 : v.muted);
   function mute() {
     const v = videoEl();
-    if (v && !v.muted) { v.muted = true; st.weMuted = true; }
+    if (!v) return;
+    if (viaKnob(v)) {
+      if (L.speak.gain.value !== 0) L.speak.gain.value = 0;
+      if (st.videoMuted) { v.muted = false; st.videoMuted = false; }   // the knob takes over (the helper hears again)
+    } else if (!v.muted) { v.muted = true; st.videoMuted = true; }
+    st.weMuted = true;
   }
   function unmute() {
     const v = videoEl();
-    if (st.weMuted && v) v.muted = false;
-    st.weMuted = false;
+    if (st.weMuted || st.videoMuted) {
+      if (L.speak) L.speak.gain.value = 1;
+      if (v && st.videoMuted) v.muted = false;
+    }
+    st.weMuted = false; st.videoMuted = false;
   }
   function tick() {
     if (dead) return;
@@ -461,7 +479,7 @@
     // muted whenever it should be, even when something (YouTube putting its own sound setting
     // back as a video starts) turned the sound on again: that used to let the first "porn" of a
     // video through (2026-11-17)
-    if (want && !v.muted) mute();
+    if (want && (!mutedNow(v) || (st.videoMuted && viaKnob(v)))) mute();
     else if (!want && st.weMuted) unmute();
   }
   timers.push(setInterval(tick, 20));
@@ -471,7 +489,7 @@
   // click on the speaker during a muted word or the first seconds): off again straight away
   document.addEventListener("volumechange", e => {
     if (dead || e.target !== videoEl() || e.target.muted) return;
-    if (st.weMuted) st.weMuted = false;
+    if (st.weMuted && !viaKnob(e.target)) { st.weMuted = false; st.videoMuted = false; }
     tick();
   }, true);
 
@@ -535,7 +553,7 @@
         guess: !m.timed })) : [],
       left: st.plan ? st.plan.left.map(m => ({ s: m.s, text: m.text, why: m.why })) : [],
       shiftKey: shiftKey(), shift,
-      listen: { state: L.state, heard: L.heard.length, learned: !!L.calib, why: L.why } };
+      listen: { state: L.state, heard: L.heard.length, learned: !!L.calib, why: L.why, knob: !!L.speak, muting: !!st.weMuted } };
   }
   globalThis.__cleanstreamReply = () => (dead ? null : stateNow());
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {

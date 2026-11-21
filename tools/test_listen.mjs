@@ -122,7 +122,17 @@ try {
   await page.waitFor(`globalThis.__cleanstreamReply && globalThis.__cleanstreamReply().listen.state === "on"`, 15000, 250, world);
   const playFor = Math.ceil(truth.secs) + 6;
   console.log(`  ... playing ${playFor} s`);
-  await sleep(playFor * 1000);
+  // looked at 10 times a second: while CleanStream mutes, the video itself stays unmuted (its own
+  // knob on the way to the speakers is turned down, so the helper still hears: 0.4.44)
+  const looks = [];
+  for (const until = Date.now() + playFor * 1000; Date.now() < until;) {
+    looks.push(await page.eval(`(() => { const r = globalThis.__cleanstreamReply().listen, v = document.querySelector("video");
+      return [+v.currentTime.toFixed(2), r.muting, v.muted, r.knob]; })()`, { contextId: world }));
+    await sleep(100);
+  }
+  const muting = looks.filter(l => l[1]);
+  console.log(`  muting seen ${muting.length} times, the video itself muted in ${muting.filter(l => l[2]).length} of them`);
+  check(muting.length > 3 && muting.every(l => !l[2] && l[3]), "while listening, mutes turn CleanStream's knob down, not the video's sound");
   const end = await page.eval(`(() => { const r = globalThis.__cleanstreamReply(); const m = globalThis.__cleanstreamState.plan.mutes.find(x => x.text === "[ __ ]") || {};
     return { listen: r.listen, from: m.from, to: m.to, s: m.s, timed: m.timed, playing: !document.querySelector("video").paused,
       graph: document.querySelector("video").muted }; })()`, { contextId: world });
@@ -144,6 +154,7 @@ try {
   // wider than before listening
   check(end.from <= darn.s && end.to >= darn.e && end.to - end.from <= before.to - before.from + 0.05,
     "the hidden word's mute covers where it's really said, no wider than before");
+  check(end.timed === true, "the muted swear was still heard by the helper, so its mute is at its real time");
   check(!page.logs.some(l => /ERROR/.test(l)), "no errors on the page " + JSON.stringify(page.logs.filter(l => /ERROR/.test(l))));
 
   // played again (0.4.43; the owner, 2026-11-21: a word "sometimes muted in a spot sometimes not"):
@@ -157,10 +168,15 @@ try {
   await sleep(1500);
   const again = await page.eval(`(() => { const r = globalThis.__cleanstreamReply(); const st = globalThis.__cleanstreamState;
     return { heard: r.listen.heard, learned: r.listen.learned, t: document.querySelector("video").currentTime,
-      timed: st.tracks.auto.flatMap(c => c.words).filter(w => w.heard).length }; })()`, { contextId: world2 });
+      timed: st.tracks.auto.flatMap(c => c.words).filter(w => w.heard).length,
+      swear: (st.plan.mutes.find(m => m.text === "[ __ ]") || {}) }; })()`, { contextId: world2 });
   console.log("  played again:", JSON.stringify(again));
   check(again.t < 4 && again.heard >= tw.length * 0.8 && again.timed >= tw.length * 0.6 && again.learned,
     "played again: the words heard before are at their real times from the start");
+  const sw = again.swear;
+  console.log(`  played again, the swear: said ${darn.s.toFixed(2)}-${darn.e.toFixed(2)}, muted ${sw.from?.toFixed(2)}-${sw.to?.toFixed(2)}`);
+  check(sw.timed === true && sw.from <= darn.s && sw.to >= darn.e && sw.to - sw.from < 1.2,
+    "played again: the swear is muted at its real time, a short mute");
 } finally { await b.close(); fs.rmSync(WORK, { recursive: true, force: true }); }
 console.log(bad ? `${bad} FAILED` : "ALL OK");
 process.exit(bad ? 1 : 0);
