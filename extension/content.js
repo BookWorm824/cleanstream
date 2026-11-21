@@ -186,6 +186,7 @@
       return;
     }
     st.raw = { written: d.written, auto: d.auto };     // kept, to place words again from what's heard
+    loadHeard(st.video);                               // and what was heard in it before
     const written = parse(d.written, false), auto = parse(d.auto, true);
     if (!(written && written.length) && !(auto && auto.length)) {
       st.captions = "empty";
@@ -296,13 +297,46 @@
   // download"; "Yes, build it"). The sound playing is passed, a few seconds at a time, to the
   // helper, which says when each word was said. YouTube's whole-line captions then take those
   // times (a word heard again, after jumping back), and the rest of the video learns where its
-  // lines' words really fall (CC.calibrate). Nothing is saved; the sound never leaves the PC.
+  // lines' words really fall (CC.calibrate). The sound never leaves the PC.
+  // What was heard is kept, in this browser only, for the KEEP_VIDEOS videos played last (0.4.43):
+  // played again, each word heard before is muted at its real time from the start, whichever kind
+  // of captions YouTube sends (the owner, 2026-11-21: "the word suck was sometimes muted in a spot
+  // sometimes not. clean stream saw it, but sometimes it put it time at 1 13 and other 1 15. the
+  // listener was working"; it's said at 1:15, and whole-line captions put it at 1:13).
   // The video's sound goes through CleanStream's own audio path on to the speakers, as before:
   // that path is only joined once it's running, so the video is never left silent.
   const L = { state: "off", ctx: null, el: null, chunk: [], pos: 0, t0: null, heard: [], calib: null, why: "", busy: 0 };
   const RATE = 16000, CHUNK_SECS = 4, OVERLAP = 1;     // each piece starts with the last second of the one before
   function listenReset() {
     L.chunk = []; L.t0 = null; L.heard = []; L.calib = null;
+  }
+  const KEEP_VIDEOS = 40, heardKey = id => "heard:" + id;
+  /** What was heard in this video before, put back (when its captions are in). */
+  async function loadHeard(id) {
+    try {
+      const k = heardKey(id), got = (await chrome.storage.local.get(k))[k];
+      if (dead || st.video !== id || !got || !Array.isArray(got.w)) return;
+      const before = got.w.map(([w, s, e]) => ({ w, raw: w, s, e }));
+      const seen = new Set(L.heard.map(w => w.s.toFixed(2)));
+      L.heard = L.heard.concat(before.filter(w => !seen.has(w.s.toFixed(2)))).sort((a, b) => a.s - b.s);
+      listenRetime();
+    } catch (e) { /* nothing kept, or cut off from CleanStream */ }
+  }
+  let saveTimer = null;
+  function saveHeard() {
+    const id = st.video;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      if (dead || !id || st.video !== id || !L.heard.length) return;
+      try {
+        const w = L.heard.map(x => [x.w, Math.round(x.s * 100) / 100, Math.round(x.e * 100) / 100]);
+        const { heardList = [] } = await chrome.storage.local.get("heardList");
+        const list = [id, ...heardList.filter(x => x !== id)];
+        const drop = list.slice(KEEP_VIDEOS).map(heardKey);
+        await chrome.storage.local.set({ [heardKey(id)]: { w, at: Date.now() }, heardList: list.slice(0, KEEP_VIDEOS) });
+        if (drop.length) await chrome.storage.local.remove(drop);
+      } catch (e) { /* cut off from CleanStream: kept next time */ }
+    }, 5000);
   }
   async function listenStart() {
     if (L.state !== "off" || dead) return;
@@ -381,6 +415,7 @@
       L.heard = L.heard.filter(w => w.s < from || w.s >= t1)          // heard again: the newer ones
         .concat(r.words.filter(w => w.s >= from).map(w => ({ w: CS.norm(w.t), raw: w.t, s: w.s, e: w.e })).filter(w => w.w));
       listenRetime();
+      saveHeard();
     }, () => { L.busy--; });
   }
   let retimeTimer = null;

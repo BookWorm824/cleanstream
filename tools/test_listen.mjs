@@ -145,6 +145,22 @@ try {
   check(end.from <= darn.s && end.to >= darn.e && end.to - end.from <= before.to - before.from + 0.05,
     "the hidden word's mute covers where it's really said, no wider than before");
   check(!page.logs.some(l => /ERROR/.test(l)), "no errors on the page " + JSON.stringify(page.logs.filter(l => /ERROR/.test(l))));
+
+  // played again (0.4.43; the owner, 2026-11-21: a word "sometimes muted in a spot sometimes not"):
+  // what was heard is kept for the video, so after a reload the words are at their real times
+  // before anything is heard again
+  await sleep(6500);                                  // (kept a few seconds after the last words heard)
+  await page.eval(`document.querySelector("video").pause(), true`);
+  await page.goto("https://www.youtube.com/watch?v=abcdefghijk", 3000);
+  const world2 = await page.extWorld(8000);
+  await page.waitFor(`globalThis.__cleanstreamState && globalThis.__cleanstreamState.captions === "ok"`, 20000, 250, world2);
+  await sleep(1500);
+  const again = await page.eval(`(() => { const r = globalThis.__cleanstreamReply(); const st = globalThis.__cleanstreamState;
+    return { heard: r.listen.heard, learned: r.listen.learned, t: document.querySelector("video").currentTime,
+      timed: st.tracks.auto.flatMap(c => c.words).filter(w => w.heard).length }; })()`, { contextId: world2 });
+  console.log("  played again:", JSON.stringify(again));
+  check(again.t < 4 && again.heard >= tw.length * 0.8 && again.timed >= tw.length * 0.6 && again.learned,
+    "played again: the words heard before are at their real times from the start");
 } finally { await b.close(); fs.rmSync(WORK, { recursive: true, force: true }); }
 console.log(bad ? `${bad} FAILED` : "ALL OK");
 process.exit(bad ? 1 : 0);

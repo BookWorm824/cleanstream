@@ -54,6 +54,8 @@ Good to know
   CleanStream listen to YouTube videos (in Chrome and Edge) with
   CleanView's speech model, so its mutes are timed better. Nothing extra is
   downloaded, and without CleanView it works as before.
+  It remembers when the words were said in the last 40 videos, on this
+  computer only, so a video watched again is timed right from the start.
 - On Netflix, Prime Video, Hulu and the others CleanStream reads their
   English subtitles (without showing them on Netflix and Prime) and mutes a
   little wider than on YouTube, since they give a line at a time.
