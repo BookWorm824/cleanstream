@@ -282,6 +282,40 @@ test("newer auto captions: a word deep in a rushed line is muted from where it f
   assert.ok(mu.from < 937.9 && mu.to > 938.8, `${mu.from} ${mu.to}`);
 });
 
+// with the listening helper's learned timing the margin is how far off it proves to be, so the mute
+// is shorter; without the helper, or when the learned timing is poor, it's as long as before (the
+// owner, 2026-11-21: "have the mutes more exact and not so long but keep the longer mutes if not
+// using the helper")
+test("newer auto captions: shorter mutes where the helper's learned timing is close, the same without it", () => {
+  const line = (ms, dur, text) => ({ tStartMs: ms, dDurationMs: dur, wWinId: 1, segs: [{ utf8: text }] });
+  const ev = [line(10000, 4000, "well that was a darn good idea I think"), line(12500, 4000, "we should go to the store tomorrow")];
+  const mute = calib => {
+    const cues = CC.readJson3({ events: ev }, true, calib ? { calib } : {});
+    return CC.plan({ auto: cues }, kids).mutes.find(m => m.text === "darn");
+  };
+  const plain = mute(null), close = mute({ lead: 0, spc: 0.06, sd: 0.04 }), poor = mute({ lead: 0, spc: 0.06, sd: 0.5 });
+  const width = m => m.to - m.from, word = m => m.e - m.s;
+  assert.ok(width(close) - word(close) < width(plain) - word(plain) - 0.4, `close ${width(close) - word(close)} plain ${width(plain) - word(plain)}`);
+  assert.ok(close.from <= close.s - 0.33 - 0.1 && close.to >= close.e + 0.08 + 0.1, "at least the least margin");
+  assert.ok(Math.abs((width(poor) - word(poor)) - (width(plain) - word(plain))) < 1e-9, "poor timing: as wide as without the helper");
+  // the helper's learned times, not the line's even spread: "darn" starts at letter 16, 0.06 s a letter
+  assert.ok(Math.abs(close.s - 10.96) < 1e-6, String(close.s));
+});
+
+test("learning a video's timing: a heard word matched to the wrong place doesn't spoil it", () => {
+  const texts = ["we went down to the store to buy some bread", "then we drove back home in the old red car",
+    "after that we sat down and had a long talk", "nobody wanted to go out again in the cold rain"];
+  const ev = texts.map((t, k) => ({ tStartMs: 10000 + k * 4000, dDurationMs: 5000, wWinId: 1, segs: [{ utf8: t }] }));
+  const cues = CC.readJson3({ events: ev }, true);
+  const heard = [];
+  cues.forEach(c => c.words.forEach(w => heard.push({ w: w.w, s: c.s + 0.2 + 0.06 * w.ix + (w.ix % 3) * 0.02, e: 0 })));
+  const good = CC.calibrate(cues, heard);
+  heard.find(h => h.w === "car").s += 1.8;             // a wrong match, far off
+  const bad = CC.calibrate(cues, heard);
+  assert.ok(good && bad && Math.abs(bad.spc - 0.06) < 0.005 && bad.sd < 0.05, JSON.stringify(bad));
+  assert.ok(Math.abs(bad.sd - good.sd) < 0.01, `${bad.sd} ${good.sd}`);
+});
+
 // CleanView 1.18.150, the Swearing list sorted by type (the owner: "organize better by type",
 // "Yes, all of it"): slurs a box of their own, sexual words with Sexual words, "balls" slang
 // and the poop word with Crude humor, "skeevy" with the rude words

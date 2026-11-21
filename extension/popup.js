@@ -185,7 +185,9 @@
     const showClock = site !== "YouTube" && r.clock != null && r.video;
     $("video-clock").hidden = !showClock;
     if (showClock) set("video-clock", r.ad ? `An ad is playing: CleanStream isn't muting it.`
-      : `CleanStream's clock: ${clock(r.clock)}. ${site}'s own clock should show the same time.`);
+      : `CleanStream's clock: ${clock(r.clock)}. ${site}'s own clock should show the same time.` +
+        // (Prime: whether its clock on screen is being read, so a screenshot shows which went wrong)
+        (r.clocked === true ? ` (Read from ${site}'s clock.)` : r.clocked === false && site === "Prime Video" ? ` (${site}'s clock isn't being read yet.)` : ""));
     const items = [
       ...r.mutes.map(m => ({ t: m.s, w: m.text, why: m.why, cls: "" })),
       ...r.left.map(m => ({ t: m.s, w: m.text, why: "left alone: " + m.why, cls: "left" })),

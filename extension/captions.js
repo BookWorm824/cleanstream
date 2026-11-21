@@ -27,6 +27,11 @@
     "to", "of", "in", "on", "at"]);
   // a written caption's word placed by its share of the line: wider, since it's a guess
   const GUESS_PAD = 0.35;
+  // ... but where the listening helper has learned this video's timing (calibrate), it also knows
+  // how far off its estimates are (sd, seconds): the pad is CAL_SDS times that, at least CAL_LEAST,
+  // never more than GUESS_PAD (the owner, 2026-11-21: "on computers that have the listening helper
+  // to have the mutes more exact and not so long but keep the longer mutes if not using the helper")
+  const CAL_SDS = 2, CAL_LEAST = 0.1;
   // ... and longer after it: the end of a guessed word got through (the owner, 2026-11-20, Prime:
   // "it muted the word jopling but played the itch in the b word"; 0.8 since 0.4.34: the word
   // came 2 s after the line's guess, "its muting mostly", and to longer mutes, "longer mutes i guess")
@@ -112,8 +117,9 @@
             s = Math.max(s0 - 0.3, s0 + opts.calib.lead + opts.calib.spc * m.index);
             e = Math.max(s + 0.15, s0 + opts.calib.lead + opts.calib.spc * (m.index + m[0].length));
           }
+          // (cal: how far off these learned times are, in seconds; plan() pads by that, not GUESS_PAD)
           words.push({ raw: hidden ? HIDDEN_SAID : m[0], w: hidden ? "" : CS.norm(m[0]), hidden,
-            s, e, timed: false, s0, ix: m.index });
+            s, e, timed: false, s0, ix: m.index, cal: asr && opts.calib ? opts.calib.sd : null });
         }
       }
       if (words.length) cues.push({ s: s0, e: s0 + dur, text, words, asr: !!asr });
@@ -178,16 +184,28 @@
   }
   /** Where a line's words really fall in this video, from the heard words: lead seconds after the
    *  line starts, spc seconds a letter (a straight line through them). null until 30 are known. */
+  // sd is how far off these times are (seconds), which sets how wide a guessed word's mute is
+  // (plan: CAL_SDS). A heard word matched to the wrong place (a repeated word, a line said twice)
+  // isn't the timing being off: points far from the line are set aside and it's fitted again, twice
+  // (one wrong match doubled sd in a test, 2026-11-21, and kept the mutes from getting shorter).
   function calibrate(cues, heard) {
-    const pts = matchHeard(cues, heard).filter(([c]) => !c.hidden && c.ix != null).map(([c, h]) => [c.ix, h.s - c.s0]);
+    let pts = matchHeard(cues, heard).filter(([c]) => !c.hidden && c.ix != null).map(([c, h]) => [c.ix, h.s - c.s0]);
     if (pts.length < 30) return null;
-    const n = pts.length, mx = pts.reduce((s, p) => s + p[0], 0) / n, my = pts.reduce((s, p) => s + p[1], 0) / n;
-    let sxy = 0, sxx = 0;
-    for (const [x, y] of pts) { sxy += (x - mx) * (y - my); sxx += (x - mx) * (x - mx); }
-    const spc = sxx ? sxy / sxx : 0, lead = my - spc * mx;
-    if (!(spc > 0.02 && spc < 0.2) || !(lead > -1.5 && lead < 3)) return null;
-    const sd = Math.sqrt(pts.reduce((s, [x, y]) => s + (y - lead - spc * x) ** 2, 0) / n);
-    return { lead, spc, sd, n };
+    const fit = ps => {
+      const n = ps.length, mx = ps.reduce((s, p) => s + p[0], 0) / n, my = ps.reduce((s, p) => s + p[1], 0) / n;
+      let sxy = 0, sxx = 0;
+      for (const [x, y] of ps) { sxy += (x - mx) * (y - my); sxx += (x - mx) * (x - mx); }
+      const spc = sxx ? sxy / sxx : 0, lead = my - spc * mx;
+      return { lead, spc, sd: Math.sqrt(ps.reduce((s, [x, y]) => s + (y - lead - spc * x) ** 2, 0) / n), n };
+    };
+    let f = fit(pts);
+    for (let round = 0; round < 2; round++) {
+      const keep = pts.filter(([x, y]) => Math.abs(y - f.lead - f.spc * x) <= Math.max(0.35, 2.5 * f.sd));
+      if (keep.length === pts.length || keep.length < Math.max(30, pts.length * 0.8)) break;
+      pts = keep; f = fit(pts);
+    }
+    if (!(f.spc > 0.02 && f.spc < 0.2) || !(f.lead > -1.5 && f.lead < 3)) return null;
+    return f;
   }
 
   // ---------- names (cleanview.name_in_subtitles, bare_god) ----------
@@ -391,6 +409,7 @@
       const after = ws.slice(b).find(x => x.w || x.hidden);
       out.push({ s: span[0].s, e: span[span.length - 1].e, text: span.map(x => x.raw).join(" "),
         cat, why: why || LABEL[cat] || cat, timed: span.every(x => x.timed), track: kind,
+        cal: span.every(x => x.timed || x.cal != null) && span.some(x => x.cal != null) ? Math.max(...span.map(x => x.cal || 0)) : null,
         cue: span[0].ci, prevS: prior && prior.timed ? prior.s : null, prevW: prior ? prior.w : null,
         nextS: after && after.timed ? after.s : null, nextE: after && after.timed ? after.e : null });
     };
@@ -509,7 +528,8 @@
     }
     mutes = mutes.map(m => {
       // a swear YouTube hid is surely a swear, and its timing is the caption maker's guess: wider
-      const pad = (m.timed ? 0 : GUESS_PAD) + (m.text === HIDDEN_SAID ? HIDDEN_PAD : 0);
+      const guess = m.timed ? 0 : m.cal != null ? Math.min(GUESS_PAD, Math.max(CAL_LEAST, CAL_SDS * m.cal)) : GUESS_PAD;
+      const pad = guess + (m.text === HIDDEN_SAID ? HIDDEN_PAD : 0);
       let from = Math.max(0, m.s - PAD_BEFORE - pad);
       // a word with its own time: the early start keeps off most of the word said before it (the
       // owner, 2026-11-19: a Short "muted 3 words instead of 1" in fast talk, then "still taking

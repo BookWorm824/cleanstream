@@ -37,26 +37,67 @@
     return m[3] != null ? +m[1] * 3600 + +m[2] * 60 + +m[3] : +m[1] * 60 + +m[2];
   }
 
-  // how far the video's own clock is ahead of the title's: the smallest gap seen since the last
-  // jump (the clock on screen shows whole seconds, so the gap wobbles up to a second above it)
-  let offset = 0, base = null, jumps = [], trusted = true;
+  // How far the video's own clock is ahead of the title's (offset). Prime's clock on screen is read
+  // only as it ticks on by one second, after a tick a second before: at that moment the title is
+  // exactly at the new second (looked at every 20 ms). A clock that stands still, jumps, counts
+  // down, or still shows the time from before an ad is never taken (the owner, 2026-11-21: "after
+  // 1 minute and a half ad the time got off", "it let a word through": CleanStream's clock 26:05,
+  // Prime's 29:18). Since only a clock ticking on like that is taken, any time on the player can be
+  // tried, not just the one with CLOCK's name (Prime's player changes: its clock showed "0:29:18").
+  // An ad stitched into the title's own video moves its clock on by the ad's length: that's added
+  // to the offset as the ad ends, so the time is right before Prime's clock ticks again.
+  const TIME_TEXT = /^\s*(?:\d{1,2}:)?\d{1,2}:\d{2}(?:\s*\/\s*(?:\d{1,2}:)?\d{1,2}:\d{2})?\s*$/;
+  let offset = 0, have = false, jumps = [], trusted = true, adEl = null, adFrom = null;
+  let ticks = new WeakMap(), clocks = [], clocksAt = -1e9;
+  /** The times on the player: CLOCK first, then any other leaf showing a time (looked for every 2 s). */
+  function clockEls(now) {
+    if (now - clocksAt > 2000) {
+      clocksAt = now;
+      const box = document.querySelector(BOX.join(","));
+      const others = box ? [...box.querySelectorAll("span, div, p")].filter(el =>
+        el.childElementCount === 0 && TIME_TEXT.test(el.textContent || "")) : [];
+      clocks = [...new Set([...document.querySelectorAll(CLOCK), ...others])].slice(0, 12);
+    }
+    return clocks;
+  }
+  /** The title's second, from a clock that just ticked on by one (null if none did). */
+  function tickedNow(now) {
+    let got = null;
+    for (const el of clockEls(now)) {
+      const text = el.textContent, was = ticks.get(el);
+      if (was && was.text === text) continue;
+      const secs = clockSecs(text);
+      if (got == null && was && secs != null && was.secs != null && secs === was.secs + 1 &&
+          now - was.at > 700 && now - was.at < 1600) got = secs;
+      ticks.set(el, { text, secs, at: now });
+    }
+    return got;
+  }
   function title(v) {
     const ad = [...document.querySelectorAll(AD)].some(seen) || adLabel();
-    if (trusted && !ad && !v.paused && v.readyState >= 2) {
-      const shown = clockSecs((document.querySelector(CLOCK) || {}).textContent);
-      if (shown != null) {
-        const gap = v.currentTime - shown;
-        if (base === null || Math.abs(gap - base) > 1.5) {
-          base = gap; offset = gap;
-          const now = Date.now();
+    const now = performance.now();
+    if (ad) {                                          // where the ad started in this video
+      if (adEl !== v) { adEl = v; adFrom = v.currentTime; }
+    } else if (adEl) {
+      // the same video before and after: the ad was inside it (else it was a video of its own)
+      if (adEl === v && have && v.currentTime > adFrom) offset += v.currentTime - adFrom;
+      adEl = null; adFrom = null;
+      ticks = new WeakMap();                           // the clock's next ticks start afresh
+    }
+    const secs = tickedNow(now);
+    if (secs != null && trusted && !ad && !v.paused && v.readyState >= 2 && (v.playbackRate || 1) === 1) {
+      const gap = v.currentTime - secs;
+      if (!have || Math.abs(gap - offset) > 1.5) {      // the first reading, or the video changed
+        if (have) {
           jumps = jumps.filter(t => now - t < 60000).concat(now);
           // jumping all the time means it isn't the clock we think it is: stop using it
-          if (jumps.length > 6) { trusted = false; offset = 0; }
-        } else if (gap < offset) offset = gap;
-      }
+          if (jumps.length > 6) { trusted = false; have = false; offset = 0; }
+        }
+        if (trusted) { offset = gap; have = true; }
+      } else offset += (gap - offset) * 0.3;            // steady: a little toward each reading
     }
     // clocked: Prime's clock on screen was read (then its time is the title's, ads and all)
-    return { t: v.currentTime - offset, ad, clocked: trusted && base !== null };
+    return { t: v.currentTime - offset, ad, clocked: trusted && have };
   }
 
   globalThis.CS_SITE = {
@@ -77,7 +118,7 @@
     },
     time: title,
     adShowing: () => [...document.querySelectorAll(AD)].some(seen) || adLabel(),
-    newTitle: () => { offset = 0; base = null; jumps = []; trusted = true; },
+    newTitle: () => { offset = 0; have = false; jumps = []; trusted = true; adEl = adFrom = null; ticks = new WeakMap(); clocksAt = -1e9; },
     host: () => document.querySelector(BOX.join(",")),
   };
 })();
