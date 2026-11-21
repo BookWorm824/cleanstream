@@ -46,32 +46,56 @@
   // tried, not just the one with CLOCK's name (Prime's player changes: its clock showed "0:29:18").
   // An ad stitched into the title's own video moves its clock on by the ad's length: that's added
   // to the offset as the ad ends, so the time is right before Prime's clock ticks again.
+  // Seen on Prime itself (2026-11-21, Chrome on the owner's PC): the clock on screen is a plain
+  // box with a scrambled name, showing "0:35:29" (and the time left, counting down), and it's only
+  // there while the controls show. The seek bar (an <input type="range">) is always there: its
+  // aria-valuetext is the same time ("0:35:29", whole seconds, cut down) and its value the share of
+  // the video gone (52.2481357...%), which matched the video's own clock to 0.01 s. So the seek bar
+  // is read first, and where its share of the video is the video's own time, the title's time is
+  // the video's own (no ads inside it to take off).
+  const SEEK = "input[type='range'][aria-valuetext]";
   const TIME_TEXT = /^\s*(?:\d{1,2}:)?\d{1,2}:\d{2}(?:\s*\/\s*(?:\d{1,2}:)?\d{1,2}:\d{2})?\s*$/;
+  // where in its second a clock is as it ticks on: the seek bar's label is cut down to the second
+  // and set a moment late (about 0.1 s); the clock on screen was rounded (0.16-0.39 s early)
+  const TICK_AT = { seek: 0.1, shown: -0.27 };
   let offset = 0, have = false, jumps = [], trusted = true, adEl = null, adFrom = null;
   let ticks = new WeakMap(), clocks = [], clocksAt = -1e9;
-  /** The times on the player: CLOCK first, then any other leaf showing a time (looked for every 2 s). */
+  const isSeek = el => el.tagName === "INPUT";
+  const textOf = el => isSeek(el) ? el.getAttribute("aria-valuetext") : el.textContent;
+  /** The times on the player: the seek bar first, then CLOCK, then any other leaf showing a time
+   *  (looked for every 2 s). */
   function clockEls(now) {
     if (now - clocksAt > 2000) {
       clocksAt = now;
       const box = document.querySelector(BOX.join(","));
+      const seek = box ? [...box.querySelectorAll(SEEK)].filter(el => TIME_TEXT.test(textOf(el) || "")) : [];
       const others = box ? [...box.querySelectorAll("span, div, p")].filter(el =>
         el.childElementCount === 0 && TIME_TEXT.test(el.textContent || "")) : [];
-      clocks = [...new Set([...document.querySelectorAll(CLOCK), ...others])].slice(0, 12);
+      clocks = [...new Set([...seek, ...document.querySelectorAll(CLOCK), ...others])].slice(0, 12);
     }
     return clocks;
   }
-  /** The title's second, from a clock that just ticked on by one (null if none did). */
+  /** The title's time from a clock that just ticked on by one second (null if none did). */
   function tickedNow(now) {
     let got = null;
     for (const el of clockEls(now)) {
-      const text = el.textContent, was = ticks.get(el);
+      const text = textOf(el), was = ticks.get(el);
       if (was && was.text === text) continue;
       const secs = clockSecs(text);
       if (got == null && was && secs != null && was.secs != null && secs === was.secs + 1 &&
-          now - was.at > 700 && now - was.at < 1600) got = secs;
+          now - was.at > 700 && now - was.at < 1600) got = secs + (isSeek(el) ? TICK_AT.seek : TICK_AT.shown);
       ticks.set(el, { text, secs, at: now });
     }
     return got;
+  }
+  /** Is the seek bar's share of the video the video's own clock? (then nothing inside it is an ad) */
+  function seekIsVideo(v) {
+    if (!isFinite(v.duration) || v.duration < 60) return false;
+    const box = document.querySelector(BOX.join(","));
+    const s = box && [...box.querySelectorAll(SEEK)].find(el => +el.max > 0);
+    if (!s) return false;
+    const secs = clockSecs(textOf(s)), at = (+s.value / +s.max) * v.duration;
+    return secs != null && Math.abs(at - v.currentTime) < 1 && at > secs - 0.3 && at < secs + 1.3;
   }
   function title(v) {
     const ad = [...document.querySelectorAll(AD)].some(seen) || adLabel();
@@ -85,7 +109,8 @@
       ticks = new WeakMap();                           // the clock's next ticks start afresh
     }
     const secs = tickedNow(now);
-    if (secs != null && trusted && !ad && !v.paused && v.readyState >= 2 && (v.playbackRate || 1) === 1) {
+    if (trusted && !ad && seekIsVideo(v)) { offset = 0; have = true; }   // the video's own clock
+    else if (secs != null && trusted && !ad && !v.paused && v.readyState >= 2 && (v.playbackRate || 1) === 1) {
       const gap = v.currentTime - secs;
       if (!have || Math.abs(gap - offset) > 1.5) {      // the first reading, or the video changed
         if (have) {

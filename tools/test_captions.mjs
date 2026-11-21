@@ -316,6 +316,20 @@ test("learning a video's timing: a heard word matched to the wrong place doesn't
   assert.ok(Math.abs(bad.sd - good.sd) < 0.01, `${bad.sd} ${good.sd}`);
 });
 
+// CleanView 1.18.157 (the owner, 2026-11-21: "can we catch a term if each word by itself is ok?",
+// "jerk me off should go in the sex catogory for all"): the phrase is muted whole for every age;
+// the same words meaning something else are left alone
+test("a sexual phrase made of ordinary words is muted for every age, not the innocent ones", () => {
+  const said = text => CC.readJson3({ events: [asr(1000, text.split(" "))] }, true);
+  const muted = (text, ticks) => CC.plan({ auto: said(text) }, ticks).mutes.map(m => [m.text, m.cat]);
+  for (const [p] of S.PROFILES) {
+    assert.deepEqual(muted("come over here and jerk me off", S.PRESETS[p]), [["jerk me off", "sexwords"]], p);
+    assert.deepEqual(muted("she jerked him off in the car", S.PRESETS[p]), [["jerked him off", "sexwords"]], p);
+    assert.deepEqual(muted("the wave jerked him off his feet", S.PRESETS[p]), [], p);
+    assert.deepEqual(muted("he jerked off the bandage", S.PRESETS[p]), [], p);
+  }
+});
+
 // CleanView 1.18.150, the Swearing list sorted by type (the owner: "organize better by type",
 // "Yes, all of it"): slurs a box of their own, sexual words with Sexual words, "balls" slang
 // and the poop word with Crude humor, "skeevy" with the rude words
