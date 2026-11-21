@@ -311,7 +311,9 @@
   function listenReset() {
     L.chunk = []; L.t0 = null; L.heard = []; L.calib = null;
   }
-  const KEEP_VIDEOS = 40, heardKey = id => "heard:" + id;
+  // ("heard2:": heard words kept before 0.4.45 were placed early, and aren't used: background.js
+  // clears them away)
+  const KEEP_VIDEOS = 40, heardKey = id => "heard2:" + id;
   /** What was heard in this video before, put back (when its captions are in). */
   async function loadHeard(id) {
     try {
@@ -331,10 +333,10 @@
       if (dead || !id || st.video !== id || !L.heard.length) return;
       try {
         const w = L.heard.map(x => [x.w, Math.round(x.s * 100) / 100, Math.round(x.e * 100) / 100]);
-        const { heardList = [] } = await chrome.storage.local.get("heardList");
+        const { heardList2: heardList = [] } = await chrome.storage.local.get("heardList2");
         const list = [id, ...heardList.filter(x => x !== id)];
         const drop = list.slice(KEEP_VIDEOS).map(heardKey);
-        await chrome.storage.local.set({ [heardKey(id)]: { w, at: Date.now() }, heardList: list.slice(0, KEEP_VIDEOS) });
+        await chrome.storage.local.set({ [heardKey(id)]: { w, at: Date.now() }, heardList2: list.slice(0, KEEP_VIDEOS) });
         if (drop.length) await chrome.storage.local.remove(drop);
       } catch (e) { /* cut off from CleanStream: kept next time */ }
     }, 5000);
@@ -383,8 +385,15 @@
     if (!st.settings || !st.settings.on || !st.video || v !== videoEl() || !st.raw || !st.raw.auto) { L.chunk = []; L.t0 = null; return; }
     if (v.paused || v.seeking || v.playbackRate !== 1 || adShowing()) { listenSend(false); return; }
     const inp = e.inputBuffer.getChannelData(0), sr = e.inputBuffer.sampleRate;
-    // where in the video this stretch of sound was: now, less the stretch and what's still on its way
-    const t = v.currentTime - inp.length / sr - (L.ctx.baseLatency || 0) - (L.ctx.outputLatency || 0);
+    // where in the video this stretch of sound starts: the video's clock now, less the stretch.
+    // (Until 0.4.45 the delay on the way to the speakers was taken off too, and heard words came
+    // out early, more so where that delay is long (a laptop, Bluetooth): the owner, 2026-11-21,
+    // "the mute came before the whole word suck", "it muted but way too early", "i played it
+    // through 3 times". The video's clock counts the sound as it comes into CleanStream's path,
+    // and a mute turns the knob down at that same point, so the speakers' delay is the same for
+    // both and isn't taken off. Tests: with neither taken off, heard words 0.07 s late; with both,
+    // 0.09 s early.)
+    const t = v.currentTime - inp.length / sr;
     if (L.t0 != null && Math.abs(t - (L.t0 + L.chunk.length / RATE)) > 0.3) listenSend(false);   // a jump
     if (L.t0 == null) { L.t0 = t; L.pos = 0; }
     const step = sr / RATE;                                    // down to 16 kHz, each sample the average it stands for

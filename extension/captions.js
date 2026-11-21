@@ -26,6 +26,9 @@
   // 0.09 s early (0.01-0.17 s) in tests, so its mute runs on a little longer, and a little into
   // the next word (0.4.44: a muted swear's mute ended 0.01 s before the word did)
   const HEARD_AFTER = 0.18, HEARD_INTO_NEXT = 0.14;
+  // ... and starts a little sooner too, whatever the word before (0.4.45: placed right on average,
+  // a computer's own sound path can still move a heard word a tenth of a second either way)
+  const HEARD_BEFORE = 0.1;
   // little words said just before a word to mute: muting them too costs nothing (quick-talk mutes)
   const LITTLE_BEFORE = new Set(["a", "an", "the", "my", "your", "his", "her", "our", "their", "its",
     "to", "of", "in", "on", "at"]);
@@ -549,7 +552,7 @@
         const back = LITTLE_BEFORE.has(m.prevW) ? Math.min(gap, PAD_BEFORE) : lead;
         from = Math.max(from, Math.min(m.s, m.s - back + 0.08));
       }
-      from = Math.max(0, from - EARLIER);
+      from = Math.max(0, from - EARLIER - (m.heard ? HEARD_BEFORE : 0));
       let to = m.e + (m.heard ? HEARD_AFTER : PAD_AFTER) + pad + (m.timed || !opts.subtitles ? 0 : GUESS_AFTER);
       // ... and the late end barely into the word after (its start is where this word ends)
       if (m.timed && m.nextS != null && m.nextS >= m.e - 0.05) to = Math.min(to, m.nextS + (m.heard ? HEARD_INTO_NEXT : 0.04));

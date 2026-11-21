@@ -121,7 +121,8 @@ chrome.runtime.onInstalled.addListener(d => {
 chrome.runtime.onInstalled.addListener(async () => {
   try {
     const all = await chrome.storage.local.get(null);
-    const old = Object.keys(all).filter(k => k.startsWith("pic:"));
+    // ... and heard words kept before 0.4.45, which were placed a little early ("heard:", "heardList")
+    const old = Object.keys(all).filter(k => k.startsWith("pic:") || k.startsWith("heard:") || k === "heardList");
     if (old.length) await chrome.storage.local.remove(old);
     await chrome.storage.sync.remove("picture");
     const { ticks } = await chrome.storage.sync.get("ticks");
