@@ -158,17 +158,11 @@
       error: "Couldn't read this video's captions.",
     }[r.captions];
     showNudge(r.captions === "ok" && r.mutes.length && r.shiftKey ? r : null);
-    // the listening helper (0.4.37): only shown where it's installed and listening
-    const ls = r.listen;
-    // where the helper is installed but isn't listening, why (0.4.38): not shown where it isn't installed
-    const notHere = ls && ls.state === "none" && /not found/i.test(ls.why || "");
-    const why = !ls || ls.state === "off" || notHere ? "" : ls.state === "ready" || ls.state === "checking"
-      ? "Listening: click once on the video page to let CleanStream hear it."
-      : ls.state === "none" ? `Listening isn't working here: ${ls.why} (CleanStream's ID: ${chrome.runtime.id})` : "";
-    $("video-listen").hidden = !(ls && ls.state === "on") && !why;
-    if (why) set("video-listen", why);
-    else if (ls && ls.state === "on") set("video-listen", "Listening with CleanView's helper: " +
-      (ls.heard ? `${ls.heard} words heard so far${ls.learned ? ", and it has learned this video's timing." : "."}` : "it hears the words as the video plays."));
+    // the listening line (0.4.37-0.4.47) isn't shown any more, nor CleanStream's ID: listening goes
+    // on quietly where it can (the owner, 2026-11-21, after Firefox showed "Listening isn't working
+    // here: no helper (CleanStream's ID: ...)": "i also want the whole listening part off", "and
+    // the id")
+    $("video-listen").hidden = true;
     const n = r.mutes.length;
     let text = say || (n ? `${n} ${n === 1 ? "word or phrase" : "words or phrases"} will be muted.`
       : "Nothing to mute in the captions.");
