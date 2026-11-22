@@ -19,7 +19,10 @@ import { spawnSync } from "node:child_process";
 import { Browser, sleep } from "./cdp.mjs";
 
 const SRC = path.resolve(new URL("../extension/", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1"));
-const EXT = path.join(process.env.TEMP, "cs_native_test");
+// CS_NO_HELPER=1: a copy the helper doesn't let in (as on a computer without it): CleanStream still
+// mutes through its own sound path, by its knob (0.4.46), and nothing is heard
+const NOH = !!process.env.CS_NO_HELPER;
+const EXT = path.join(process.env.TEMP, NOH ? "cs_knob_test" : "cs_native_test");
 const HELPER = path.join(process.env.LOCALAPPDATA, "CleanStream Helper", "listen_host.bat");
 const FF = path.join(process.env.LOCALAPPDATA, "CleanView", "app", "bin", "ffmpeg.exe");
 const WORK = fs.mkdtempSync(path.join(os.tmpdir(), "cs-listen-"));
@@ -119,7 +122,7 @@ try {
   check(!!paused && !!resumed && resumed[1] - paused[1] < 3.2 && paused[2] < 1, "the video waited at the start while the captions came, then played");
   const before = await page.eval(`(globalThis.__cleanstreamState.plan.mutes.find(m => m.text === "[ __ ]") || {})`, { contextId: world });
   await page.eval(`(() => { const v = document.querySelector("video"); v.currentTime = 0; v.play(); return true; })()`);
-  await page.waitFor(`globalThis.__cleanstreamReply && globalThis.__cleanstreamReply().listen.state === "on"`, 15000, 250, world);
+  await page.waitFor(`globalThis.__cleanstreamReply && globalThis.__cleanstreamReply().listen.${NOH ? "knob" : "state === \"on\""}`, 15000, 250, world);
   const playFor = Math.ceil(truth.secs) + 6;
   console.log(`  ... playing ${playFor} s`);
   // looked at 10 times a second: while CleanStream mutes, the video itself stays unmuted (its own
@@ -132,7 +135,14 @@ try {
   }
   const muting = looks.filter(l => l[1]);
   console.log(`  muting seen ${muting.length} times, the video itself muted in ${muting.filter(l => l[2]).length} of them`);
-  check(muting.length > 3 && muting.every(l => !l[2] && l[3]), "while listening, mutes turn CleanStream's knob down, not the video's sound");
+  check(muting.length > 3 && muting.every(l => !l[2] && l[3]), "mutes turn CleanStream's knob down, not the video's sound");
+  if (NOH) {
+    const r = await page.eval(`globalThis.__cleanstreamReply().listen`, { contextId: world });
+    console.log("  listen:", JSON.stringify(r));
+    check(r.state === "none" && r.heard === 0, "no helper here: nothing heard, and CleanStream still mutes by its knob");
+    check(!page.logs.some(l => /ERROR/.test(l)), "no errors on the page " + JSON.stringify(page.logs.filter(l => /ERROR/.test(l))));
+    throw "done";
+  }
   const end = await page.eval(`(() => { const r = globalThis.__cleanstreamReply(); const m = globalThis.__cleanstreamState.plan.mutes.find(x => x.text === "[ __ ]") || {};
     return { listen: r.listen, from: m.from, to: m.to, s: m.s, timed: m.timed, playing: !document.querySelector("video").paused,
       graph: document.querySelector("video").muted }; })()`, { contextId: world });
@@ -177,6 +187,6 @@ try {
   console.log(`  played again, the swear: said ${darn.s.toFixed(2)}-${darn.e.toFixed(2)}, muted ${sw.from?.toFixed(2)}-${sw.to?.toFixed(2)}`);
   check(sw.timed === true && sw.from <= darn.s && sw.to >= darn.e && sw.to - sw.from < 1.2,
     "played again: the swear is muted at its real time, a short mute");
-} finally { await b.close(); fs.rmSync(WORK, { recursive: true, force: true }); }
+} catch (e) { if (e !== "done") throw e; } finally { await b.close(); fs.rmSync(WORK, { recursive: true, force: true }); }
 console.log(bad ? `${bad} FAILED` : "ALL OK");
 process.exit(bad ? 1 : 0);

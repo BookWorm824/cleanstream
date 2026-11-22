@@ -354,31 +354,55 @@
     L.state = "ready";
     listenAttach();
   }
-  function listenAttach() {
+  // CleanStream's own sound path, with the knob a mute turns down (0.4.46): on every computer, not
+  // only where the listening helper is (the owner, 2026-11-21: with the video's own sound turned
+  // off, the silence came "before" the word on her laptop; through the knob, "its muting"; then
+  // "just 1": the knob everywhere). A browser only lets sound be routed once the viewer has clicked
+  // or pressed a key on the page: until then the video's own sound is turned off, as before. Not in
+  // Firefox yet (untested there).
+  const KNOB_OK = !/Firefox\//.test(navigator.userAgent);
+  let knobWaiting = false;
+  function knobAttach() {
     const v = videoEl();
-    if (dead || !v || L.el === v || L.state === "none") return;
-    if (!L.ctx) { try { L.ctx = new AudioContext(); } catch (e) { L.state = "none"; L.why = String(e); return; } }
+    if (dead || !v || !KNOB_OK || L.el === v || L.failedEl === v) return;
+    if (!L.ctx) { try { L.ctx = new AudioContext(); } catch (e) { L.failedEl = v; L.knobWhy = String(e); return; } }
     const ctx = L.ctx;
     const join = () => {
-      if (L.el === v || ctx.state !== "running" || v !== videoEl()) return;
+      if (dead || L.el === v || L.failedEl === v || ctx.state !== "running" || v !== videoEl()) return;
       try {
         const src = ctx.createMediaElementSource(v);          // the video's sound now comes through here
         const speak = ctx.createGain();                        // ... and on to the speakers as before, through
         src.connect(speak); speak.connect(ctx.destination);    // a knob CleanStream mutes with (mute())
-        const proc = ctx.createScriptProcessor(4096, 1, 1), quiet = ctx.createGain();
-        quiet.gain.value = 0;                                  // the copy for the helper: not to the speakers
-        src.connect(proc); proc.connect(quiet); quiet.connect(ctx.destination);
-        proc.onaudioprocess = e => listenSound(e, v);
-        L.el = v; L.speak = speak; L.state = "on";
+        L.el = v; L.src = src; L.speak = speak; L.proc = null;
+        if (L.state === "ready" || L.state === "on") listenAttach();
         tick();                                                // a mute already on moves to the knob
-      } catch (e) { L.state = "none"; L.why = String(e); }    // e.g. joined already by an older copy
+      } catch (e) {                                            // e.g. joined already by an older copy
+        L.failedEl = v; L.knobWhy = String(e);
+        if (L.state === "ready") { L.state = "none"; L.why = String(e); }
+      }
     };
     if (ctx.state === "running") return join();
     ctx.resume().then(join, () => {});
-    // a browser only lets sound be routed once the viewer has clicked or pressed a key on the page
-    const later = () => ctx.resume().then(join, () => {});
-    document.addEventListener("pointerdown", later, { once: true, capture: true });
-    document.addEventListener("keydown", later, { once: true, capture: true });
+    if (!knobWaiting) {                                        // the first click or key press on the page
+      knobWaiting = true;
+      const later = () => { knobWaiting = false; ctx.resume().then(join, () => {}); };
+      document.addEventListener("pointerdown", later, { once: true, capture: true });
+      document.addEventListener("keydown", later, { once: true, capture: true });
+    }
+  }
+  /** The listening helper's copy of the sound, off CleanStream's path (joined first if need be). */
+  function listenAttach() {
+    const v = videoEl();
+    if (dead || !v || L.state === "none") return;
+    if (L.el !== v) return knobAttach();
+    if (L.proc) return;
+    try {
+      const proc = L.ctx.createScriptProcessor(4096, 1, 1), quiet = L.ctx.createGain();
+      quiet.gain.value = 0;                                    // the copy for the helper: not to the speakers
+      L.src.connect(proc); proc.connect(quiet); quiet.connect(L.ctx.destination);
+      proc.onaudioprocess = e => listenSound(e, v);
+      L.proc = proc; L.state = "on";
+    } catch (e) { L.state = "none"; L.why = String(e); }
   }
   function listenSound(e, v) {
     if (dead) return;
@@ -442,7 +466,10 @@
       replan();
     }, 200);
   }
-  timers.push(setInterval(() => { if (L.state === "off" && st.captions === "ok") listenStart(); else if (L.state === "on" || L.state === "ready") listenAttach(); }, 2000));
+  timers.push(setInterval(() => {
+    if (st.captions === "ok" && st.settings && st.settings.on) knobAttach();
+    if (L.state === "off" && st.captions === "ok") listenStart(); else if (L.state === "on" || L.state === "ready") listenAttach();
+  }, 2000));
 
   // ---------- muting at the right moment ----------
   function inRange(t, ranges, lead) {
