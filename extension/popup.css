@@ -19,6 +19,7 @@ h2 { font-size: 13px; margin: 0 0 6px; color: var(--green); text-transform: none
 .say { margin: 0; }
 .update { margin: 10px 12px 0; padding: 9px 12px; border-radius: 12px; background: var(--green-soft);
   border: 1px solid var(--green); font-weight: 600; }
+.update a { color: var(--green); font-weight: 600; text-decoration: underline; cursor: pointer; }
 label.tick { display: flex; gap: 8px; align-items: flex-start; padding: 3px 0; cursor: pointer; }
 label.tick input { margin-top: 3px; accent-color: var(--green); width: 15px; height: 15px; flex: none; }
 .seg { display: flex; border: 1px solid var(--edge); border-radius: 18px; overflow: hidden; }

@@ -9,6 +9,8 @@
   const $ = id => document.getElementById(id);
   // the newest CleanStream (its manifest on GitHub; "Update CleanStream.bat" fetches it)
   const UPDATE_URL = "https://raw.githubusercontent.com/BookWorm824/cleanstream/main/extension/manifest.json";
+  const FIREFOX_VERSION_URL = "https://raw.githubusercontent.com/BookWorm824/cleanstream/main/firefox/version.json";
+  const FIREFOX_XPI = "https://github.com/BookWorm824/cleanstream/raw/main/firefox/CleanStream-Firefox.xpi";
   const clock = t => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), x = t % 60;
     return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0"); };
 
@@ -218,19 +220,33 @@
   };
   chrome.runtime.sendMessage({ type: "check-files" }).catch(() => {});   // updated on disk: reload
   try {
-    const r = await fetch(UPDATE_URL, { cache: "no-store" });
+    const firefox = /Firefox\//.test(navigator.userAgent);
+    // Firefox: the signed file's own version (firefox/version.json, set when Mozilla's signed copy
+    // is put up), so it isn't said to be ready before it can be installed
+    const r = await fetch(firefox ? FIREFOX_VERSION_URL : UPDATE_URL, { cache: "no-store" });
     const latest = r.ok ? (await r.json()).version : null;
     if (latest && newer(latest, mine)) {
-      // Firefox can't update it by itself (Mozilla refused update_url; the owner, 2026-11-18:
-      // "mozilla says no updates still"): the signed file is installed again from the link
-      $("update-say").textContent = /Firefox\//.test(navigator.userAgent)
-        ? `A new version of CleanStream (${latest}) is ready. To get it, open ` +
-          `github.com/BookWorm824/cleanstream/raw/main/firefox/CleanStream-Firefox.xpi in Firefox, ` +
-          `then click the downloaded file and "Add".`
-        : `A new version of CleanStream (${latest}) is ready. To get it, ` +
+      const say = $("update-say");
+      say.textContent = "";
+      if (firefox) {
+        // Firefox can't update it by itself (Mozilla refused update_url; the owner, 2026-11-18:
+        // "mozilla says no updates still"): the signed file is installed again from the link, which
+        // can be clicked (the owner, 2026-11-21: "is there any way to make that address clickable")
+        const a = document.createElement("a");
+        a.href = FIREFOX_XPI; a.textContent = "Get CleanStream " + latest + " for Firefox";
+        a.target = "_blank"; a.rel = "noopener";
+        a.addEventListener("click", e => {
+          e.preventDefault();
+          chrome.tabs.create({ url: FIREFOX_XPI }).then(() => window.close(), () => window.open(FIREFOX_XPI, "_blank"));
+        });
+        say.append(`A new version of CleanStream (${latest}) is ready. `, a,
+          `, then click "Add" when Firefox asks.`);
+      } else {
+        say.textContent = `A new version of CleanStream (${latest}) is ready. To get it, ` +
           `double-click "Update CleanStream" on your desktop (the first time: the "update" file in ` +
           `the CleanStream folder, which chrome://extensions shows under "Loaded from").`;
-      $("update-say").hidden = false;
+      }
+      say.hidden = false;
     }
   } catch (e) { /* offline: say nothing */ }
 })();
