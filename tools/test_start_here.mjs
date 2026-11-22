@@ -20,6 +20,12 @@ import { Browser, sleep } from "./cdp.mjs";
 const EXT = path.resolve(new URL("../extension/", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1"));
 
 const PRIME = `<!doctype html><title>Stand-in</title><body><div id="dv-web-player"><video muted></video></div></body>`;
+// a live channel: a video with no end (0.4.49; the owner, 2026-11-21: on Prime's live one "it was
+// muted like before and wouldn't let me adjust")
+const PRIME_LIVE = `<!doctype html><title>Stand-in</title><body><div id="dv-web-player"><video id="v"></video></div><script>
+const ms = new MediaSource(); v.src = URL.createObjectURL(ms);
+ms.addEventListener("sourceopen", () => { ms.duration = Infinity; });
+</script></body>`;
 // a stand-in YouTube player: its caption setting, and a caption download (with YouTube's pass) each
 // time a track is chosen, as the real one does
 const YT = `<!doctype html><title>Stand-in</title><body><div id="movie_player"><video class="html5-main-video"></video></div>
@@ -54,7 +60,7 @@ try {
       return request.url.includes("src=player") ? send("application/json", CAPS)
         : page.send("Fetch.fulfillRequest", { requestId, responseCode: 404, body: "" }).catch(() => {});
     if (resourceType !== "Document") return page.send("Fetch.failRequest", { requestId, errorReason: "Failed" }).catch(() => {});
-    send("text/html", request.url.includes("youtube") ? YT : PRIME);
+    send("text/html", request.url.includes("youtube") ? YT : request.url.includes("B0LIVE") ? PRIME_LIVE : PRIME);
   });
 
   // 1. Amazon's home page: CleanStream doesn't start there
@@ -94,6 +100,20 @@ try {
   })()`);
   check(!!(read && read.reply && read.reply.site === "Prime Video"), "the settings window reads it from the page");
   check(read && read.asked === true, "asked to start it, it says it's running");
+
+  // 2b. a live channel on Prime, opened straight away (not a late start): the sound isn't held off
+  // waiting for subtitles that won't come, and she's told why
+  await page.send("Page.bringToFront");              // (a tab behind the settings window doesn't load its video)
+  await page.goto("https://www.amazon.com/gp/video/detail/B0LIVE", 3000);
+  const lw = await page.extWorld(8000);
+  await page.waitFor("window.__cleanstreamSite && window.__cleanstreamSite.alive()", 10000, 250, lw);
+  await page.eval(`window.postMessage({ cleanstream: "pv-page", type: "title", title: "B0LIVE" }, "*"); true`);
+  await sleep(2000);
+  const live = await page.eval(`({ holding: globalThis.__cleanstreamState.holding, status: globalThis.__cleanstreamState.status,
+    dur: document.querySelector("video").duration, muted: document.querySelector("video").muted })`, { contextId: lw });
+  console.log("  live:", JSON.stringify(live));
+  check(!live.holding && !live.muted && /live TV/.test(live.status || ""),
+    "a live channel: the sound isn't held off, and it says it can't clean live TV yet");
 
   // 3. YouTube: the manifest's copy runs as before
   await page.goto("https://www.youtube.com/watch?v=abcdefghijk", 3000);

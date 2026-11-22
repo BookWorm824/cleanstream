@@ -105,10 +105,21 @@
     const d = v.duration;
     return isFinite(d) && d > 0 && d <= AD_LONGEST && st.lastCue > d + 60;
   }
+  // Live TV (a live channel or event: a video with no end, or longer than a day's programmes run
+  // in one go): there are no subtitles to read ahead of time, so the sound isn't held off waiting
+  // for them, and she's told (the owner, 2026-11-21: "i can hear a show on prime regular video but
+  // when i clicked on the live one it was muted like before and wouldn't let me adjust")
+  const LIVE_SAY = "This is live TV: CleanStream can't get its subtitles ahead of time, so it can't mute " +
+    "bad language here yet. The sound is left on.";
+  const isLive = v => v.duration === Infinity || (isFinite(v.duration) && v.duration > 8 * 3600);
   function tick() {
     if (dead) return;
     const v = videoEl();
     if (!v || !st.settings || !st.settings.on || !st.video) return;
+    if (st.holding && isLive(v)) {
+      hold(false);
+      if (!st.toldLive) { st.toldLive = true; say(LIVE_SAY, 12); }
+    }
     if (st.weMuted && mutedEl && mutedEl !== v) unmute();       // swapped: let the old one go
     const rate = v.playbackRate || 1;
     const ad = isAd(v);
@@ -454,7 +465,7 @@
 
   function startTitle(id) {
     shift = 0;
-    st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting"; st.lastCue = 0;
+    st.video = id; st.tracks = null; st.plan = null; st.ranges = []; st.captions = "waiting"; st.lastCue = 0; st.toldLive = false;
     pieces = new Map(); whole = false;
     unhide(); st.toldHidden = false;
     if (SITE.newTitle) SITE.newTitle();
@@ -462,8 +473,12 @@
     unmute(); hold(false);
     loadShift();
     if (!id || !st.settings || !st.settings.on) return;
-    hold(true);
-    say(lateStart ? "CleanStream is getting this title's subtitles…" : "CleanStream is getting this title's subtitles (the sound is off until it's ready)…", 0);
+    const v0 = videoEl();
+    if (v0 && isLive(v0)) { st.toldLive = true; say(LIVE_SAY, 12); }   // live TV: nothing held (tick() too)
+    else {
+      hold(true);
+      say(lateStart ? "CleanStream is getting this title's subtitles…" : "CleanStream is getting this title's subtitles (the sound is off until it's ready)…", 0);
+    }
     if (SITE.ask) window.postMessage({ [TAG]: SITE.contentTag, type: "get-subs", title: id }, "*");
   }
   let pending = null;            // subtitles that came before the title was known (Prime)
