@@ -26,6 +26,14 @@ const PRIME_LIVE = `<!doctype html><title>Stand-in</title><body><div id="dv-web-
 const ms = new MediaSource(); v.src = URL.createObjectURL(ms);
 ms.addEventListener("sourceopen", () => { ms.duration = Infinity; });
 </script></body>`;
+// Prime's player asking for a title's playback details, as the real one does (prime_page.js reads
+// the answer): a live channel says it's live (0.4.51; the owner, 2026-11-22: "i dont see it say
+// live tv dont work"); a regular title lists its subtitles
+const primeAsks = (asin, kind) => `<!doctype html><title>Stand-in</title><body><div id="dv-web-player"><video></video></div><script>
+setTimeout(() => { const x = new XMLHttpRequest(); x.open("GET", "/cdp/catalog/GetPlaybackResources?asin=${asin}&videoMaterialType=${kind}"); x.send(); }, 300);
+</script></body>`;
+const VOD_RESOURCES = JSON.stringify({ playbackUrls: {}, subtitleUrls: [{ url: "https://www.amazon.com/subs/en.vtt", languageCode: "en-us", type: "sdh" }] });
+const VOD_VTT = "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nwell damn it\n";
 // a stand-in YouTube player: its caption setting, and a caption download (with YouTube's pass) each
 // time a track is chosen, as the real one does
 const YT = `<!doctype html><title>Stand-in</title><body><div id="movie_player"><video class="html5-main-video"></video></div>
@@ -59,8 +67,11 @@ try {
     if (request.url.includes("/api/timedtext"))       // only the player's own request (no going round it)
       return request.url.includes("src=player") ? send("application/json", CAPS)
         : page.send("Fetch.fulfillRequest", { requestId, responseCode: 404, body: "" }).catch(() => {});
+    if (request.url.includes("PlaybackResources")) return send("application/json", request.url.includes("LiveStreaming") ? JSON.stringify({ playbackUrls: {} }) : VOD_RESOURCES);
+    if (request.url.includes("/subs/en.vtt")) return send("text/vtt", VOD_VTT);
     if (resourceType !== "Document") return page.send("Fetch.failRequest", { requestId, errorReason: "Failed" }).catch(() => {});
-    send("text/html", request.url.includes("youtube") ? YT : request.url.includes("B0LIVE") ? PRIME_LIVE : PRIME);
+    send("text/html", request.url.includes("youtube") ? YT : request.url.includes("B0LIVE2") ? primeAsks("B0LIVE2", "LiveStreaming")
+      : request.url.includes("B0VOD") ? primeAsks("B0VOD", "Feature") : request.url.includes("B0LIVE") ? PRIME_LIVE : PRIME);
   });
 
   // 1. Amazon's home page: CleanStream doesn't start there
@@ -114,6 +125,23 @@ try {
   console.log("  live:", JSON.stringify(live));
   check(!live.holding && !live.muted && /live TV/.test(live.status || ""),
     "a live channel: the sound isn't held off, and it says it can't clean live TV yet");
+
+  // 2c. a live channel Prime says is live (its playback details), though its video has an end
+  await page.goto("https://www.amazon.com/gp/video/detail/B0LIVE2", 3000);
+  const lw2 = await page.extWorld(8000);
+  await sleep(2500);
+  const live2 = await page.eval(`({ captions: globalThis.__cleanstreamState.captions, holding: globalThis.__cleanstreamState.holding,
+    status: globalThis.__cleanstreamState.status, video: globalThis.__cleanstreamState.video })`, { contextId: lw2 });
+  console.log("  live (said by Prime):", JSON.stringify(live2));
+  check(live2.video === "B0LIVE2" && live2.captions === "live" && !live2.holding && /live TV/.test(live2.status || ""),
+    "a live channel Prime says is live: the sound isn't held off, and it says so");
+  // 2d. a regular title: its subtitles are read and muted from, as before
+  await page.goto("https://www.amazon.com/gp/video/detail/B0VOD", 3000);
+  const vw = await page.extWorld(8000);
+  await sleep(3000);
+  const vod = await page.eval(`({ captions: globalThis.__cleanstreamState.captions, n: globalThis.__cleanstreamState.plan && globalThis.__cleanstreamState.plan.mutes.length })`, { contextId: vw });
+  console.log("  regular title:", JSON.stringify(vod));
+  check(vod.captions === "ok" && vod.n >= 1, "a regular title still gets its subtitles and mutes from them");
 
   // 3. YouTube: the manifest's copy runs as before
   await page.goto("https://www.youtube.com/watch?v=abcdefghijk", 3000);

@@ -112,14 +112,18 @@
   const LIVE_SAY = "This is live TV: CleanStream can't get its subtitles ahead of time, so it can't mute " +
     "bad language here yet. The sound is left on.";
   const isLive = v => v.duration === Infinity || (isFinite(v.duration) && v.duration > 8 * 3600);
+  /** Live TV: the sound left on, said on the video and in the settings window (st.captions "live"). */
+  function liveTV() {
+    if (st.captions === "ok") return;
+    st.captions = "live";
+    hold(false);
+    if (!st.toldLive) { st.toldLive = true; say(LIVE_SAY, 12); }
+  }
   function tick() {
     if (dead) return;
     const v = videoEl();
     if (!v || !st.settings || !st.settings.on || !st.video) return;
-    if (st.holding && isLive(v)) {
-      hold(false);
-      if (!st.toldLive) { st.toldLive = true; say(LIVE_SAY, 12); }
-    }
+    if (st.holding && isLive(v)) liveTV();
     if (st.weMuted && mutedEl && mutedEl !== v) unmute();       // swapped: let the old one go
     const rate = v.playbackRate || 1;
     const ad = isAd(v);
@@ -474,7 +478,7 @@
     loadShift();
     if (!id || !st.settings || !st.settings.on) return;
     const v0 = videoEl();
-    if (v0 && isLive(v0)) { st.toldLive = true; say(LIVE_SAY, 12); }   // live TV: nothing held (tick() too)
+    if (v0 && isLive(v0)) liveTV();                     // live TV: nothing held (tick() too)
     else {
       hold(true);
       say(lateStart ? "CleanStream is getting this title's subtitles…" : "CleanStream is getting this title's subtitles (the sound is off until it's ready)…", 0);
@@ -501,6 +505,7 @@
       if (pending && pending.title === d.title) { subsArrived(pending); pending = null; }
     }
     if (d.type === "subs-done") { if (d.title === st.video) subsArrived(d); else pending = d; }
+    if (d.type === "live" && d.title === st.video) liveTV();       // Prime's page said it's live TV
     // a subtitle file the player downloaded itself, when the list's own fetch failed
     if (d.type === "subs-seen" && d.title === st.video && st.captions !== "ok") subsArrived({ title: d.title, text: d.text });
     if (d.type === "subs-piece") pieceArrived(d);

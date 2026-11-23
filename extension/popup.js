@@ -151,6 +151,7 @@
       none: "This title has no English subtitles, so bad language can't be muted.",
       empty: `${site} didn't share this title's subtitles. Reloading the page may help.`,
       error: "Couldn't read this title's subtitles.",
+      live: "This is live TV: CleanStream can't mute bad language here yet, so the sound is left on.",
     }[r.captions] : {
       waiting: "Getting this video's captions…",
       none: "This video has no English captions, so bad language can't be muted.",

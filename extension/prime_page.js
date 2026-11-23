@@ -19,18 +19,25 @@
     if (type === "title") { if (last.title !== data.title) { last.subs = null; last.seen = null; } last.title = data.title; }
     if (type === "subs-done") last.subs = data;
     if (type === "subs-seen") last.seen = data;
+    if (type === "live") last.live = data;
     window.postMessage({ [TAG]: "pv-page", type, ...data }, "*");
   };
   window.addEventListener("message", e => {
     const d = e.data;
     if (e.source !== window || !d || d[TAG] !== "pv-content" || d.type !== "hello") return;
     if (last.title) said("title", { title: last.title });
+    if (last.live && last.live.title === last.title) said("live", last.live);
     if (last.subs) said("subs-done", last.subs);
     else if (last.seen) said("subs-seen", last.seen);
   });
   const F = window.fetch;
 
-  const RESOURCES = /GetPlaybackResources|GetVodPlaybackResources|\/playback\/prs\//i;
+  // (and a live channel's or event's, whatever its name: GetLivePlaybackResources...)
+  const RESOURCES = /Get\w*PlaybackResources|\/playback\/prs\//i;
+  // live TV (a live channel or event: 0.4.51; the owner, 2026-11-22: on a live channel "i dont see
+  // it say live tv dont work"): no subtitle file to read ahead of time, so CleanStream says so
+  const LIVE_URL = /[?&]videoMaterialType=Live|GetLive\w*Playback/i;
+  const LIVE_JSON = /"(?:videoMaterialType|materialType|playbackType)"\s*:\s*"Live|"isLive"\s*:\s*true/i;
   const looksLikeSubs = t => typeof t === "string" && (/^\s*WEBVTT/.test(t) || /<tt[\s>]/.test(t.slice(0, 3000)));
 
   /** Every {url, languageCode, type...} that looks like a subtitle file, anywhere in the JSON. */
@@ -53,6 +60,11 @@
     let json; try { json = JSON.parse(text); } catch (e) { return; }
     const files = subtitleFiles(json);
     const title = titleOf(url) || (json.catalogMetadata && json.catalogMetadata.catalog && json.catalogMetadata.catalog.id) || "prime";
+    if (LIVE_URL.test(url) || LIVE_JSON.test(text)) {
+      lastTitle = title;
+      said("title", { title });
+      return said("live", { title });
+    }
     if (!files.length && !/subtitle|timedText|playbackUrls|manifest/i.test(text)) return;    // not the playback list
     lastTitle = title;
     said("title", { title });
