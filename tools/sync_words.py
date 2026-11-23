@@ -79,7 +79,8 @@ def build():
     sets = lambda d: {k: sorted(v) for k, v in d.items()}
     data = {
         "from": "CleanView " + json.loads((CLEANVIEW / "version.json").read_text())["version"],
-        "STRONG": cl.STRONG, "MODERATE": cl.MODERATE, "MILD": cl.MILD, "MINCED": cl.MINCED,
+        "STRONG": cl.STRONG, "MODERATE": cl.MODERATE, "MILD": cl.MILD + list(getattr(cl, "SUCK_SLANG", [])),   # (+ "sucky"... since CleanView 1.18.163)
+        "MINCED": cl.MINCED,
         "DEITY_WORDS": cl.DEITY_WORDS, "SAMESEX_WORDS": cl.SAMESEX_WORDS, "RUDE": cl.RUDE,
         # CleanView 1.18.150, the Swearing list sorted by type (the owner: "organize better by
         # type", "Yes, all of it"): slurs a box of their own, sexual words muted with "sexref",
@@ -90,6 +91,8 @@ def build():
         "DEITY_PHRASES": [list(p) for p in cl.DEITY_PHRASES],
         "CRUDE_PHRASES": [list(p) for p in cl.CRUDE_PHRASES],
         "RUDE_PHRASES": [list(p) for p in cl.RUDE_PHRASES],
+        # CleanView 1.18.163: "sucks" for "is bad" is a mild word ("that sucks", "you suck"...)
+        "SUCK_PHRASES": [list(p) for p in getattr(cl, "SUCK_PHRASES", [])],
         "REVERENT_BEFORE": sorted(cl.REVERENT_BEFORE), "REVERENT_NEXT": sorted(cl.REVERENT_NEXT),
         "REVERENT_IS": sorted(cl.REVERENT_IS),
         "INNOCENT_NEXT": sets(cl.INNOCENT_NEXT), "INNOCENT_PREV": sets(cl.INNOCENT_PREV),

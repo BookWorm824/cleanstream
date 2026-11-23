@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CleanStream",
-  "version": "0.4.49",
+  "version": "0.4.50",
   "description": "Mutes bad language while videos play on YouTube, Netflix, Prime Video, Hulu and more. Nothing is copied or saved.",
   "icons": {
     "16": "icons/16.png",

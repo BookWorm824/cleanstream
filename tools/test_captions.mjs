@@ -330,6 +330,23 @@ test("a sexual phrase made of ordinary words is muted for every age, not the inn
   }
 });
 
+// CleanView 1.18.163 (the owner: "sucks - its not picking this word out", "Move to Mild words"):
+// "sucks" for "is bad" is a mild word, so it's muted for adults too; sucking something isn't
+test("\"sucks\" for \"is bad\" is a mild word for every age; sucking something is left alone", () => {
+  const said = text => CC.readJson3({ events: [asr(1000, text.split(" "))] }, true);
+  const muted = (text, ticks) => CC.plan({ auto: said(text) }, ticks).mutes.map(m => [m.text, m.cat]);
+  for (const [p] of S.PROFILES) {
+    assert.deepEqual(muted("people we suck sometimes", S.PRESETS[p]), [["suck", "mild"]], p);
+    assert.deepEqual(muted("man that really sucks", S.PRESETS[p]), [["sucks", "mild"]], p);
+    assert.deepEqual(muted("what a sucky day", S.PRESETS[p]), [["sucky", "mild"]], p);
+    assert.deepEqual(muted("you just have to suck it up", S.PRESETS[p]), [], p);
+    assert.deepEqual(muted("the baby likes to suck her thumb", S.PRESETS[p]), [], p);
+  }
+  // "you sucker" stays a rude word: muted for kids, not for adults (rude words off)
+  assert.deepEqual(muted("you sucker", kids).map(m => m[1]), ["rude"]);
+  assert.deepEqual(muted("you sucker", adults), []);
+});
+
 // CleanView 1.18.150, the Swearing list sorted by type (the owner: "organize better by type",
 // "Yes, all of it"): slurs a box of their own, sexual words with Sexual words, "balls" slang
 // and the poop word with Crude humor, "skeevy" with the rude words

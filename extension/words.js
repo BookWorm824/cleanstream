@@ -57,6 +57,7 @@
     COON_REACH = W.COON_REACH, THANK_GOD_AND = set(W.THANK_GOD_AND);
   const byLen = list => [...list].sort((a, b) => b.length - a.length);   // stable, as sorted()
   const DEITY = byLen(W.DEITY_PHRASES), RUDE_PH = byLen(W.RUDE_PHRASES), CRUDE = W.CRUDE_PHRASES;
+  const SUCK_PH = byLen(W.SUCK_PHRASES || []);    // "sucks" for "is bad": mild (CleanView 1.18.163)
 
   // ---------- normalising a word: bleeps, abbreviations, punctuation ----------
   const BLEEP = /[*#]|[@$%&!]{2,}|(?<=[a-z])-{2,}(?=[a-z])/;
@@ -292,7 +293,13 @@
       if (has("rude")) {
         ph = RUDE_PH.find(p => at(words, i, p) && rudeUse(p));
         if (ph) { take(ph.length, "rude"); continue; }
-        if (suckSwear(words, i)) { take(1, "rude"); continue; }
+      }
+      // "sucks" for "is bad" is a mild word since CleanView 1.18.163 (the owner: "sucks - its not
+      // picking this word out", "Move to Mild words"); it was a rude word, off for teens and adults
+      if (has("mild")) {
+        ph = SUCK_PH.find(p => at(words, i, p) && rudeUse(p));
+        if (ph) { take(ph.length, "mild"); continue; }
+        if (suckSwear(words, i)) { take(1, "mild"); continue; }
       }
       const w = words[i], wb = base(w);
       const nxt = i + 1 < n ? words[i + 1] : "", prev = i ? words[i - 1] : "";
