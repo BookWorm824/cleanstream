@@ -1,6 +1,6 @@
 {
  "app": "CleanStream",
- "version": "0.4.52",
+ "version": "0.4.53",
  "sha256": {
   "LICENSE": "3550fc3914aed3d503e93a92205a6245ff7f18db56c3a030f46abc1b33449a73",
   "NOTICE-FOR-AI.md": "d4b7410948fac69bd7c84d5650c5092317be67addd8b07364cfab3966f82687b",
@@ -16,7 +16,7 @@
   "icons/32.png": "a0bfe0e5e8f1a32e7f756aa8ca21953438bc89295cc5c4453cec2206e414f8e9",
   "icons/48.png": "15e46895188ecf447fcf15268dca2f9dabf3f182119be70253a7439936fdc9c0",
   "icons/cleanstream.ico": "3e20b1e7577a0e2bf483731ee60de8e6f527987485f96a3d0bd7c75673526c2b",
-  "manifest.json": "e58899875d061af98c94c705eeec22f492c7a86eb986646170be91e246ad6367",
+  "manifest.json": "382e080c48278e88c7fc86e1b2f4876c1d59c4c4bad915597af4fb150a3ae7a2",
   "netflix_page.js": "105d52fded5eb9692794decb5051fd433589f01381ac7c7df8a894ada7acfb43",
   "other_page.js": "15f0e7ccb32ee1f53157989f249c51a9ec7278da8139a74c777f80168f13527d",
   "page.js": "78c69e519ae5be6de1ca5f43eb6424e29b99c94d89a4eba23bb64eafd3194da3",
@@ -31,6 +31,6 @@
   "site_prime.js": "598122b74d6cdae9298bc83ce253b56215b43d8ef0400487ee8717c8db1ad040",
   "update.cmd": "f64bd1d4b9d5e8913c4dc6d26a0cbc1bb8de1d91da292d931683bf315d890042",
   "words.js": "bdb5b6278696a932a3a55f5e714d92c37bdefb62248f70f41647ecbf39f74d39",
-  "words_data.js": "e9fee4c98e87127ee858bcb2006a34ee07864fa5ecba850dc2bf26e81481c6ab"
+  "words_data.js": "ae65da02ba7554567b3d4635ad8cf9d79cd187fa30b0f24887e0751726532c99"
  }
 }
