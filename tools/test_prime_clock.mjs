@@ -21,7 +21,15 @@ const hms = s => { s = Math.max(0, s); const h = Math.floor(s / 3600), m = Math.
  *  title's own time, ads inside the video left out), "none"; opts.shown: "always", "sometimes"
  *  (the controls now and then), "never"; opts.ad: "stitched" (inside the title's video) or "own"
  *  (a video of its own); opts.staleSecs: the seek bar still shows the time from before the ad for
- *  that long after it; opts.adMarked: whether CleanStream can tell an ad is on (default yes). */
+ *  that long after it; opts.adMarked: whether CleanStream can tell an ad is on (default yes);
+ *  opts.late: the "Ad" label shows up that long after the ad starts (and goes as late);
+ *  opts.lateStart: it shows up that long after the ad starts, and goes as the ad ends;
+ *  opts.linger: it stays up that long after the show is back on (the owner, 2026-11-25: "it said
+ *  it was an ad" and the f word played); opts.seekAdTime: during the ad the seek bar counts the
+ *  ad's own time from 0:00; opts.early: the label shows up that long before the ad starts.
+ *  Right after the ad CleanStream's time may be "unsure": then site.js mutes UNSURE wider, so
+ *  that much is forgiven (the owner, 2026-11-25: after an ad "i heard the f word"). */
+const UNSURE = 0.6;
 function run(opts) {
   let T = 0;
   globalThis.performance = { now: () => T * 1000 };
@@ -44,6 +52,7 @@ function run(opts) {
   const TOTAL = 4000, AD_AT = 60, AD_LEN = opts.adLen || 90, END = AD_AT + AD_LEN + 60;
   const show = { currentTime: 1200, paused: false, readyState: 4, playbackRate: 1, duration: TOTAL + (opts.ad === "stitched" ? AD_LEN : 0) };
   const adVid = { currentTime: 0, paused: true, readyState: 4, playbackRate: 1, duration: AD_LEN };
+  let adOnShow = 0, adMissed = 0;
   let title = 1200, reported = 1200, worst = 0, worstAfter = 0, clockedAtEnd = false;
   for (let k = 0; T < END; k++) {
     T = k * 0.02;
@@ -54,24 +63,27 @@ function run(opts) {
     } else { show.paused = false; adVid.paused = true; show.currentTime += 0.02; title += 0.02; }
     // what Prime shows is set about 4 times a second
     if (k % 12 === 0 && !inAd && !(opts.staleSecs && after >= 0 && after < opts.staleSecs)) reported = title;
-    if (k % 12 === 0) {
+    if (k % 12 === 0 && opts.seekAdTime && inAd) seek.label = hms(Math.floor(T - AD_AT));
+    else if (k % 12 === 0) {
       // "video": its share of the video's own length; "title": of the title's, ads left out
       seek.label = hms(Math.floor(reported)); seek.value = String(reported / (opts.seek === "video" ? show.duration : TOTAL) * 100);
     }
     const controls = opts.shown === "always" || (opts.shown === "sometimes" && (T < 8 || T % 40 < 3));
     clock.shown = left.shown = controls && !inAd;
     clock.textContent = hms(Math.round(reported)); left.textContent = hms(TOTAL - reported);
-    adLabel.shown = inAd && opts.adMarked !== false; adLabel.textContent = "Ad 1 of 1";
+    adLabel.shown = T >= AD_AT + (opts.late || opts.lateStart || 0) - (opts.early || 0) && T < AD_AT + AD_LEN + (opts.late || opts.linger || 0) && opts.adMarked !== false; adLabel.textContent = "Ad 1 of 1";
     const v = inAd && opts.ad === "own" ? adVid : show;
     const r = S.time(v);
-    if (!inAd && T > 10) {
-      const err = Math.abs((r.clocked ? r.t : v.currentTime) - title);
+    if (inAd && !r.ad && opts.adMarked !== false && T > AD_AT + (opts.late || opts.lateStart || 0) + 0.1) adMissed += 0.02;
+    if (!inAd && r.ad && after >= 0) adOnShow += 0.02;          // the show on, taken for an ad
+    if (!inAd && T > 10 && !r.ad && !(opts.late && after >= 0 && after < opts.late)) {
+      const err = Math.max(0, Math.abs((r.clocked ? r.t : v.currentTime) - title) - (r.unsure ? UNSURE : 0));
       if (after < 0) worst = Math.max(worst, err);
-      else if (after > (opts.staleSecs || 0) + 2.5) worstAfter = Math.max(worstAfter, err);
+      else worstAfter = Math.max(worstAfter, err);     // from the moment the show is back
     }
     clockedAtEnd = r.clocked;
   }
-  return { worst, worstAfter, clockedAtEnd };
+  return { worst, worstAfter, clockedAtEnd, adOnShow, adMissed };
 }
 
 const cases = [
@@ -83,6 +95,9 @@ const cases = [
   ["the same, the ad not marked as an ad", { seek: "title", shown: "never", ad: "stitched", adMarked: false }, 0.2],
   ["the same, the seek bar showing the time from before the ad for 2 s", { seek: "title", shown: "never", ad: "stitched", staleSecs: 2 }, 0.2],
   ["the same, a 27-second ad", { seek: "title", shown: "never", ad: "stitched", adLen: 27 }, 0.2],
+  ["the same, the \"Ad\" label coming and going 0.6 s late", { seek: "title", shown: "never", ad: "stitched", late: 0.6 }, 0.2],
+  ["the same, the \"Ad\" label showing up 0.6 s late", { seek: "title", shown: "never", ad: "stitched", lateStart: 0.6 }, 0.2],
+  ["no seek bar, the clock on screen now and then, the \"Ad\" label showing up 0.6 s late", { seek: "none", shown: "sometimes", ad: "stitched", lateStart: 0.6 }, 0.35],
   // no seek bar: only the clock on screen, now and then
   ["no seek bar, the clock on screen now and then", { seek: "none", shown: "sometimes", ad: "stitched" }, 0.35],
 ];
@@ -90,6 +105,17 @@ for (const [what, o, most] of cases) {
   const r = run(o);
   check(r.clockedAtEnd && r.worst < most && r.worstAfter < most,
     `${what}: off by at most ${r.worst.toFixed(2)} s before the ad, ${r.worstAfter.toFixed(2)} s after (allowed ${most})`);
+}
+for (const [what, o] of [
+  ["an ad inside the video, the \"Ad\" label staying up 4 s after the show is back", { seek: "title", shown: "never", ad: "stitched", linger: 4 }],
+  ["an ad as a video of its own, the seek bar counting the ad's time, the label staying up 4 s", { seek: "title", shown: "never", ad: "own", seekAdTime: true, linger: 4 }],
+  ["the same, the ad inside the video", { seek: "title", shown: "never", ad: "stitched", seekAdTime: true, linger: 4 }],
+  ["an ad inside the video, the label showing up 1.5 s early and staying up 4 s", { seek: "title", shown: "never", ad: "stitched", early: 1.5, linger: 4 }],
+  ["the same, the seek bar counting the ad's time", { seek: "title", shown: "never", ad: "stitched", seekAdTime: true, early: 1.5, linger: 4 }],
+]) {
+  const r = run(o);
+  check(r.adOnShow < 1.3 && r.adMissed === 0 && r.worstAfter < 0.2 && r.clockedAtEnd,
+    `${what}: the show taken for an ad for ${r.adOnShow.toFixed(2)} s, the ad missed for ${r.adMissed.toFixed(2)} s, off by at most ${r.worstAfter.toFixed(2)} s after`);
 }
 const none = run({ seek: "none", shown: "never", ad: "stitched" });
 check(!none.clockedAtEnd, "no clock to read at all: Prime's clock isn't taken as read");

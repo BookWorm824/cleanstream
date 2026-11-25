@@ -203,7 +203,9 @@
     }
   }
   showVideo();
-  setInterval(showVideo, 2000);
+  // twice a second, so CleanStream's clock here can be compared with the site's (the owner,
+  // 2026-11-25: "the clocks differ by about a second": it was only looked at every 2 s)
+  setInterval(showVideo, 500);
 
   // ---------- a newer version on GitHub? ----------
   const mine = chrome.runtime.getManifest().version;

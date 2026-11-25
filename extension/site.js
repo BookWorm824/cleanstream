@@ -60,11 +60,14 @@
   const videoEl = () => SITE.video();
 
   // ---------- muting ----------
-  function inRange(t, ranges, lead) {
+  function inRange(t, ranges, lead, tail = 0) {
     let lo = 0, hi = ranges.length - 1;
     while (lo <= hi) { const mid = (lo + hi) >> 1; if (ranges[mid][0] <= t + lead) lo = mid + 1; else hi = mid - 1; }
-    return hi >= 0 && t < ranges[hi][1];
+    return hi >= 0 && t - tail < ranges[hi][1];
   }
+  // while the site's clock is a guess (just after an ad on Prime, until its clock ticks on again),
+  // each mute starts and ends this much wider (the owner, 2026-11-25: after an ad "i heard the f word")
+  const UNSURE_PAD = 0.6;
   // the element we muted is remembered: the site can swap its video for another mid-title
   let mutedEl = null;
   function mute() { const v = videoEl(); if (v && !v.muted) { v.muted = true; st.weMuted = true; mutedEl = v; } }
@@ -128,8 +131,9 @@
     const rate = v.playbackRate || 1;
     const ad = isAd(v);
     noteAd(v, ad);
-    const at = ad ? { t: 0, ad: true } : titleTime(v);
-    const want = !ad && (st.holding || (!v.paused && !at.ad && inRange(at.t, st.ranges, 0.08 * rate)));
+    // the site's clock is read during ads too, so it sees where an ad starts and ends
+    const tt = titleTime(v), at = ad ? { t: 0, ad: true } : tt;
+    const want = !ad && (st.holding || (!v.paused && !at.ad && inRange(at.t, st.ranges, 0.08 * rate + (at.unsure ? UNSURE_PAD : 0), at.unsure ? UNSURE_PAD : 0)));
     if (want && !v.muted) mute();
     else if (!want && st.weMuted) unmute();
   }

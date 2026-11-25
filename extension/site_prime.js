@@ -15,7 +15,10 @@
   const CLOCK = ".atvwebplayersdk-timeindicator-text";
   const AD = ".atvwebplayersdk-ad-timer, .atvwebplayersdk-ad-timer-text, .atvwebplayersdk-adtimeindicator-text, [class*='adtimeindicator']";
 
-  const seen = el => !!el && el.getClientRects().length > 0;
+  // on the page and not faded out or hidden (an ad's timer can stay on the page, see-through,
+  // after the ad: the owner, 2026-11-25, the show back on and CleanStream saying an ad was playing)
+  const seen = el => !!el && el.getClientRects().length > 0 && (!el.checkVisibility ||
+    el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true, opacityProperty: true, visibilityProperty: true }));
   // an "Ad" / "Ad 1 of 2" / "Ad · 0:15" label shown over the player (looked at 20 times a second,
   // so an ad's start and end are noted closely: its length comes off CleanStream's clock)
   // (not "Ad-free" or "Ad: learn more": 2026-11-19, the owner: listed words played on Prime)
@@ -59,6 +62,21 @@
   // and set a moment late (about 0.1 s); the clock on screen was rounded (0.16-0.39 s early)
   const TICK_AT = { seek: 0.1, shown: -0.27 };
   let offset = 0, have = false, jumps = [], trusted = true, adEl = null, adFrom = null;
+  // Right after an ad, the time is a guess until Prime's clock ticks on again (1-2 s): the ad's
+  // start and end are seen a moment off, and an ad CleanStream can't tell is an ad isn't taken off
+  // at all. The owner, 2026-11-25: "a commercial came and i heard the f word ... when i went back
+  // to get the timestamp it catches it". So until then the time is "unsure" (site.js mutes a
+  // little wider), the first time the seek bar's label changes puts it within half a second, and
+  // the next tick is taken as it is (not eased toward, which took 5-10 s).
+  let unsure = false, fresh = false;
+  // An "Ad" label still up once the show is back on (the owner, 2026-11-25: "it said it was an
+  // ad", and the f word played): nothing is muted during an ad, so when the seek bar's label
+  // counts on from about where the show stopped for the ad, the show is back whatever the label
+  // says (back): seen the first time it counts on. Not while it's counting on from the ad's own
+  // time (from 0:00: run, where its counting on started), and not for an ad before the show
+  // starts (its time is about 0:00 too).
+  let adT0 = null, back = false, seekTicks = [], showT = null;
+  const labelsAd = () => [...document.querySelectorAll(AD)].some(seen) || adLabel();
   let ticks = new WeakMap(), clocks = [], clocksAt = -1e9;
   const isSeek = el => el.tagName === "INPUT";
   const textOf = el => isSeek(el) ? el.getAttribute("aria-valuetext") : el.textContent;
@@ -75,16 +93,26 @@
     }
     return clocks;
   }
-  /** The title's time from a clock that just ticked on by one second (null if none did). */
-  function tickedNow(now) {
+  /** The title's time from a clock that just ticked on by one second (null if none did). Also,
+   *  as the seek bar's label changes, out.near: the title's time to within half a second. */
+  function tickedNow(now, out, v) {
     let got = null;
     for (const el of clockEls(now)) {
       const text = textOf(el), was = ticks.get(el);
       if (was && was.text === text) continue;
       const secs = clockSecs(text);
-      if (got == null && was && secs != null && was.secs != null && secs === was.secs + 1 &&
-          now - was.at > 700 && now - was.at < 1600) got = secs + (isSeek(el) ? TICK_AT.seek : TICK_AT.shown);
-      ticks.set(el, { text, secs, at: now });
+      // the seek bar's label just changed to this second (counting on, or a jump)
+      if (isSeek(el) && secs != null && was && was.secs != null && secs !== was.secs) out.near = secs + 0.5;
+      const tick = was && secs != null && was.secs != null && secs === was.secs + 1 && now - was.at > 700 && now - was.at < 1600;
+      // the seek bar's label counting on by a second, and where that counting on started (it
+      // starts again after a jump, or after standing still through an ad)
+      const on = was && secs != null && was.secs != null && secs === was.secs + 1;
+      const run = on && now - was.at < 1600 && was.run != null ? was.run : secs;
+      // (and a jump: from the ad's own time back to where the show stopped, say)
+      if (isSeek(el) && was && secs != null && was.secs != null && secs !== was.secs)
+        seekTicks = seekTicks.filter(x => now - x.at < 10000).concat({ at: now, secs, run, jump: !on });
+      if (got == null && tick) got = secs + (isSeek(el) ? TICK_AT.seek : TICK_AT.shown);
+      ticks.set(el, { text, secs, at: now, run });
     }
     return got;
   }
@@ -97,9 +125,28 @@
     const secs = clockSecs(textOf(s)), at = (+s.value / +s.max) * v.duration;
     return secs != null && Math.abs(at - v.currentTime) < 1 && at > secs - 0.3 && at < secs + 1.3;
   }
+  /** The "Ad" label is up: is the show back on anyway? */
+  function showBack(v, now) {
+    if (adT0 == null) return false;
+    const ons = seekTicks.filter(x => !x.jump), last = ons[ons.length - 1], change = seekTicks[seekTicks.length - 1];
+    if (back) {                                        // the seek bar stopped: an ad again
+      if (!v.paused && (!last || now - last.at > 3000)) { back = false; adT0 = have ? v.currentTime - offset : null; seekTicks = []; }
+      return back;
+    }
+    // counting on just now (the label stands still through an ad inside the title's video)
+    if (adT0 > 5 && change && now - change.at < 100 && !v.paused && change.run >= adT0 - 1.5 &&
+        change.secs <= adT0 + (change.jump ? 3 : 600)) back = true;
+    return back;
+  }
   function title(v) {
-    const ad = [...document.querySelectorAll(AD)].some(seen) || adLabel();
     const now = performance.now();
+    const out = {};
+    const secs = tickedNow(now, out, v);
+    const label = labelsAd();
+    // (where the show was as the label came up: the playing video may be the ad's own by then)
+    if (!label) { adT0 = null; back = false; showT = have ? v.currentTime - offset : null; }
+    else if (adT0 == null) { adT0 = showT; seekTicks = []; back = false; }
+    const ad = label && !showBack(v, now);
     if (ad) {                                          // where the ad started in this video
       if (adEl !== v) { adEl = v; adFrom = v.currentTime; }
     } else if (adEl) {
@@ -107,12 +154,15 @@
       if (adEl === v && have && v.currentTime > adFrom) offset += v.currentTime - adFrom;
       adEl = null; adFrom = null;
       ticks = new WeakMap();                           // the clock's next ticks start afresh
+      if (have) { unsure = true; fresh = true; }
     }
-    const secs = tickedNow(now);
-    if (trusted && !ad && seekIsVideo(v)) { offset = 0; have = true; }   // the video's own clock
-    else if (secs != null && trusted && !ad && !v.paused && v.readyState >= 2 && (v.playbackRate || 1) === 1) {
+    const steady = trusted && !ad && !v.paused && !v.seeking && v.readyState >= 2 && (v.playbackRate || 1) === 1;
+    if (trusted && !ad && seekIsVideo(v)) { offset = 0; have = true; unsure = fresh = false; }   // the video's own clock
+    else if (secs != null && steady && (fresh || !have)) {
+      offset = v.currentTime - secs; have = true; unsure = fresh = false;  // just after an ad: as it is
+    } else if (secs != null && steady) {
       const gap = v.currentTime - secs;
-      if (!have || Math.abs(gap - offset) > 1.5) {      // the first reading, or the video changed
+      if (Math.abs(gap - offset) > 1.5) {               // the video changed
         if (have) {
           jumps = jumps.filter(t => now - t < 60000).concat(now);
           // jumping all the time means it isn't the clock we think it is: stop using it
@@ -121,8 +171,13 @@
         if (trusted) { offset = gap; have = true; }
       } else offset += (gap - offset) * 0.3;            // steady: a little toward each reading
     }
+    // the seek bar's label says the title is more than half a second from where it's thought to
+    // be (an ad not seen as one, or seen a moment off): put it there, unsure till the next tick
+    if (out.near != null && steady && have && secs == null && Math.abs(v.currentTime - offset - out.near) > 0.75) {
+      offset = v.currentTime - out.near; unsure = true; fresh = true;
+    }
     // clocked: Prime's clock on screen was read (then its time is the title's, ads and all)
-    return { t: v.currentTime - offset, ad, clocked: trusted && have };
+    return { t: v.currentTime - offset, ad, clocked: trusted && have, unsure: unsure && trusted && have };
   }
 
   globalThis.CS_SITE = {
@@ -142,8 +197,8 @@
           .sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0] || null;
     },
     time: title,
-    adShowing: () => [...document.querySelectorAll(AD)].some(seen) || adLabel(),
-    newTitle: () => { offset = 0; have = false; jumps = []; trusted = true; adEl = adFrom = null; ticks = new WeakMap(); clocksAt = -1e9; },
+    adShowing: () => labelsAd() && !back,
+    newTitle: () => { offset = 0; have = false; jumps = []; trusted = true; adEl = adFrom = null; ticks = new WeakMap(); clocksAt = -1e9; unsure = fresh = false; adT0 = showT = null; back = false; seekTicks = []; },
     host: () => document.querySelector(BOX.join(",")),
   };
 })();
