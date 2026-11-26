@@ -133,6 +133,8 @@ def build():
         # CleanView 1.18.133: the raccoon (coon_animal), "Thank God and seek faith" (prayer)
         "COON_WORDS": sorted(cl.COON_WORDS), "COON_INSULT_BEFORE": sorted(cl.COON_INSULT_BEFORE),
         "COON_REACH": cl.COON_REACH, "THANK_GOD_AND": sorted(cl.THANK_GOD_AND),
+        # CleanView 1.18.172: the flower, not the slur (pansy_flower)
+        "PANSY_FLOWERS": sorted(cl.PANSY_FLOWERS), "PANSY_INSULT_BEFORE": sorted(cl.PANSY_INSULT_BEFORE),
         # CleanView 1.18.144 (CleanListen cfdc3db): "Darn her," exploded Davy (darn_oath)
         **{k: sorted(getattr(cl, k, ())) for k in ("SAID_VERBS", "DARN_NEW_SENTENCE", "DARN_CURSED")},
         # the short phrase lists that need no AI (cleanview.LINE_WORDS), and the rules around them

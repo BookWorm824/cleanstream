@@ -54,7 +54,8 @@
     FAGGOT_WOOD = set(W.FAGGOT_WOOD), BOOBY_BIRDS = set(W.BOOBY_BIRDS),
     STUPID_DAZED_NEXT = set(W.STUPID_DAZED_NEXT), STUPID_DAZED_PREV = set(W.STUPID_DAZED_PREV),
     COON_WORDS = set(W.COON_WORDS), COON_INSULT_BEFORE = set(W.COON_INSULT_BEFORE),
-    COON_REACH = W.COON_REACH, THANK_GOD_AND = set(W.THANK_GOD_AND);
+    COON_REACH = W.COON_REACH, THANK_GOD_AND = set(W.THANK_GOD_AND),
+    PANSY_FLOWERS = set(W.PANSY_FLOWERS), PANSY_INSULT_BEFORE = set(W.PANSY_INSULT_BEFORE);
   const byLen = list => [...list].sort((a, b) => b.length - a.length);   // stable, as sorted()
   const DEITY = byLen(W.DEITY_PHRASES), RUDE_PH = byLen(W.RUDE_PHRASES), CRUDE = W.CRUDE_PHRASES;
   const SUCK_PH = byLen(W.SUCK_PHRASES || []);    // "sucks" for "is bad": mild (CleanView 1.18.163)
@@ -191,10 +192,19 @@
     return anyIn(COON_WORDS, around);
   }
 
+  // the flower, not the slur (CleanView 1.18.172, cvcore.pansy_flower): a garden word close by,
+  // not said at someone ("you pansy") unless a garden word follows ("such pansies in the pot")
+  function pansyFlower(words, i) {
+    if (PANSY_INSULT_BEFORE.has(i ? words[i - 1] : "") && !anyIn(PANSY_FLOWERS, words.slice(i + 1, i + 4)))
+      return false;
+    return anyIn(PANSY_FLOWERS, words.slice(Math.max(0, i - 10), i + 11));
+  }
+
   function oldWordInnocent(words, i, wb) {
     const around = near(words, i - 10, i + 11);
     const meets = s => [...s].some(x => around.has(x));
     return ((wb === "ass" || wb === "asses") && assAnimal(words, i)) ||
+      ((wb === "pansy" || wb === "pansies") && pansyFlower(words, i)) ||
       ((wb === "coon" || wb === "coons") && coonAnimal(words, i)) ||
       ((wb === "faggot" || wb === "faggots") && meets(FAGGOT_WOOD)) ||
       ((wb === "boobies" || wb === "booby") && meets(BOOBY_BIRDS)) ||

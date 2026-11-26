@@ -5,7 +5,7 @@
 // Made by tools/sync_words.py from CleanView's word lists. Don't edit by hand:
 // change the words in CleanView, then run the tool again.
 globalThis.CV_WORDS = {
-"from": "CleanView 1.18.166",
+"from": "CleanView 1.18.172",
 "STRONG": [
 ".*fuck.*",
 "cunts?",
@@ -64,7 +64,7 @@ globalThis.CV_WORDS = {
 "beyotch",
 "shat",
 "dick(wad|weed|face|ish|wit|bag|less)s?",
-"numbnuts",
+"numbnuts?",
 "knobheads?",
 "tossers?",
 "bellends?",
@@ -216,7 +216,11 @@ globalThis.CV_WORDS = {
 "dumbdumbs?",
 "dumdums?",
 "fatheads?",
-"skeevy"
+"skeevy",
+"smartypants",
+"goodytwoshoes",
+"knowitalls?",
+"blabbermouths?"
 ],
 "SLURS": [
 "nigg(a|as|ah|az|er|ers)",
@@ -243,6 +247,8 @@ globalThis.CV_WORDS = {
 "lesbos?",
 "fagg?ott?(y|ie|ies)",
 "lez(z?ie|z?ies|bos?)",
+"pans(y|ies)",
+"pansyass(es)?",
 "marico?n(es)?"
 ],
 "SEX_WORDS": [
@@ -327,7 +333,9 @@ globalThis.CV_WORDS = {
 "slurs",
 "moderate",
 "moderate",
-"sexwords"
+"sexwords",
+"slurs",
+"slurs"
 ],
 "FILTER_WORDS": {
 "sexref": "sexwords",
@@ -840,6 +848,47 @@ globalThis.CV_WORDS = {
 [
 "you",
 "suckers"
+],
+[
+"smarty",
+"pants"
+],
+[
+"goody",
+"two",
+"shoes"
+],
+[
+"goody",
+"twoshoes"
+],
+[
+"miss",
+"know",
+"it",
+"all"
+],
+[
+"mister",
+"know",
+"it",
+"all"
+],
+[
+"mr",
+"know",
+"it",
+"all"
+],
+[
+"little",
+"know",
+"it",
+"all"
+],
+[
+"blabber",
+"mouth"
 ]
 ],
 "SUCK_PHRASES": [
@@ -1810,7 +1859,9 @@ globalThis.CV_WORDS = {
 "re (tard|tards|tarded)\\b",
 "s o b\\b",
 "eff (you|off|me|him|her|them|it|that|this)\\b",
-"(jerk|jerks|jerked|jerking|jerkin|jack|jacks|jacked|jacking|jackin) (me|him|you|ya|her|them|us|myself|yourself|himself|herself|themselves|each other) off\\b(?! (the|a|an|his|her|its|their|my|your|our|of|to|into|onto|from|at|toward|towards|course|balance|guard|track|road|path|ground|floor|table|shelf|wall|hook|feet|chair|bed|couch|stage|bike|horse|seat|ledge|edge|roof|ladder)\\b)"
+"(jerk|jerks|jerked|jerking|jerkin|jack|jacks|jacked|jacking|jackin) (me|him|you|ya|her|them|us|myself|yourself|himself|herself|themselves|each other) off\\b(?! (the|a|an|his|her|its|their|my|your|our|of|to|into|onto|from|at|toward|towards|course|balance|guard|track|road|path|ground|floor|table|shelf|wall|hook|feet|chair|bed|couch|stage|bike|horse|seat|ledge|edge|roof|ladder)\\b)",
+"kung flu\\b",
+"bat eaters?\\b"
 ],
 "MILD_SLANG": [
 "(yank|yanks|yanked|yanking|yankin|jerk|jerks|jerked|jerking|jerkin|pull|pulls|pulled|pulling|pullin) (my|your|ya|yer|his|her|our|their|someone's|somebody's) chains?\\b",
@@ -2900,6 +2951,78 @@ globalThis.CV_WORDS = {
 "seek",
 "trust",
 "worship"
+],
+"PANSY_FLOWERS": [
+"bed",
+"beds",
+"bloom",
+"bloomed",
+"blooming",
+"blooms",
+"bouquet",
+"daisies",
+"daisy",
+"florist",
+"flower",
+"flowers",
+"garden",
+"gardening",
+"gardens",
+"geranium",
+"geraniums",
+"grew",
+"grow",
+"growing",
+"grows",
+"marigold",
+"marigolds",
+"nursery",
+"petal",
+"petals",
+"petunia",
+"petunias",
+"pick",
+"picked",
+"picking",
+"plant",
+"planted",
+"planting",
+"plants",
+"pot",
+"pots",
+"potted",
+"pretty",
+"primrose",
+"primroses",
+"purple",
+"rose",
+"roses",
+"seed",
+"seeds",
+"smell",
+"tulip",
+"tulips",
+"vase",
+"violet",
+"violets",
+"watered",
+"watering",
+"window",
+"windowbox",
+"yellow"
+],
+"PANSY_INSULT_BEFORE": [
+"big",
+"bunch",
+"complete",
+"little",
+"real",
+"such",
+"these",
+"those",
+"total",
+"ya",
+"you"
 ],
 "SAID_VERBS": [
 "cried",

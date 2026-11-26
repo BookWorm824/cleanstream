@@ -58,6 +58,12 @@ SENTENCES = [
     "They be the best pets, that coon of mine", "the coon washes every blessed thing",
     "you dirty coon", "the hounds treed a coon", "Thank God and seek faith", "Thank God you're here",
     "Thank the Lord and pray for rain",
+    # CleanView 1.18.172
+    "She planted pansies in the garden bed", "a pot of pansies", "pansies in the window box",
+    "Stop being a pansy", "you pansy", "such pansies in the pot", "Those pansy-ass keyboard crusaders",
+    "They call it the kung flu", "called me a bat eater", "Quiet, numbnut", "Well, Miss Smarty-Pants",
+    "little Miss Know-It-All", "you know it all went wrong", "Miss Goody Two-Shoes",
+    "Old Blabbermouth Tarbell", "a blabber mouth", "kung fu fighting",
     # CleanView 1.18.139
     "Screw the government.", "Screw the Columbians", "screw the lid on", "screw the bulb back in",
     "screw the two pieces together",
